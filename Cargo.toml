@@ -1,0 +1,9 @@
+[package]
+name = "enforcer"
+version = "0.1.0"
+authors = ["Oliver Mueller <oliver.mueller@esrlabs.com>"]
+
+[dependencies]
+glob = "*"
+docopt = "0.6"
+rustc-serialize = "0.3"
