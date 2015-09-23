@@ -56,20 +56,22 @@ fn check_file(path: &Path) -> std::io::Result<u8> {
     Ok(result)
 }
 
-fn clean_buf<T: std::io::BufRead + Sized>(reader: T) -> std::io::Result<String> {
-    let mut cleaned : Vec<String> = Vec::new();
-    for line in reader.lines().filter_map(|result| result.ok()) {
-        cleaned.push(line.trim_right().to_string());
+fn clean_string(input: &str) -> std::io::Result<String> {
+    let v: Vec<&str> = input.lines_any().map(|line| line.trim_right()).collect();
+    if input.ends_with("\n") {
+        Ok(v.join("\n") + "\n")
+    } else {
+        Ok(v.join("\n"))
     }
-    Ok(cleaned.join("\n") + "\n")
 }
 
 fn clean_file(path: &Path) -> std::io::Result<()> {
     use std::io::prelude::*;
 
-    let f = try!(File::open(path));
-    let reader = BufReader::new(f);
-    let res_string = try!(clean_buf(reader));
+    let mut f = try!(File::open(path));
+    let mut buffer = String::new();
+    try!(f.read_to_string(&mut buffer));
+    let res_string = try!(clean_string(&buffer));
     let mut file = try!(File::create(path));
     try!(file.write_all(res_string.as_bytes()));
     Ok(())
@@ -107,18 +109,18 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::clean_buf;
+    use super::clean_string;
 
     #[test]
     fn test_clean_does_not_remove_trailing_newline() {
         let content = "1\n2\n3\n4\n5\n";
-        let cleaned = clean_buf(content.as_bytes()).unwrap();
+        let cleaned = clean_string(content).unwrap();
         assert!(cleaned.eq(content));
     }
     #[test]
     fn test_clean_trailing_whitespace() {
         let content = "1 \n2";
-        let cleaned = clean_buf(content.as_bytes()).unwrap();
+        let cleaned = clean_string(content).unwrap();
         println!("{:?}", cleaned);
         assert!(cleaned.eq("1\n2"));
     }
