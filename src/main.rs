@@ -7,6 +7,7 @@ extern crate glob;
 
 use docopt::Docopt;
 use std::path::Path;
+use std::fs::File;
 
 const USAGE: &'static str = "
 enforcer for code rules
@@ -45,6 +46,8 @@ fn check_file(path: &Path) -> std::io::Result<u8> {
             result |= TRAILING_SPACES;
         } else if line.contains("\t") {
             result |= HAS_TABS;
+        } else if line.as_bytes().iter().any(|x| *x > 127) {
+            println!("file {} line \"{}\" contained illegal characters", path.display(), line);
         }
         if result != 0 {
             return Ok(result);
@@ -53,22 +56,23 @@ fn check_file(path: &Path) -> std::io::Result<u8> {
     Ok(result)
 }
 
+fn clean_buf<T: std::io::BufRead + Sized>(reader: T) -> std::io::Result<Vec<String>> {
+    let mut cleaned : Vec<String> = Vec::new();
+    for line in reader.lines().filter_map(|result| result.ok()) {
+        cleaned.push(line.trim_right().to_string());
+    }
+    Ok(cleaned)
+}
+
 fn clean_file(path: &Path) -> std::io::Result<()> {
     use std::io::prelude::*;
     use std::io::BufReader;
-    use std::fs::File;
 
     trace!("clean_file {}", path.display());
-    let mut cleaned : Vec<String> = Vec::new();
-    {
-        let f = try!(File::open(path));
-        trace!("opened file");
-        let reader = BufReader::new(f);
-        for line in reader.lines().filter_map(|result| result.ok()) {
-            cleaned.push(line.trim_right().to_string());
-        }
-    }
-
+    let f = try!(File::open(path));
+    trace!("opened file");
+    let reader = BufReader::new(f);
+    let cleaned = try!(clean_buf(reader));
     trace!("joining lines... ");
     let res_string = cleaned.join("\n");
     let mut file = try!(File::create(path));
@@ -76,6 +80,16 @@ fn clean_file(path: &Path) -> std::io::Result<()> {
     try!(file.write_all(res_string.as_bytes()));
     trace!("wrote file");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    // use super::add_two;
+
+    #[test]
+    fn test_detect_illegal_characters() {
+        assert_eq!(4, 2);
+    }
 }
 
 fn main() {
