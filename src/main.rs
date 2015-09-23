@@ -8,6 +8,7 @@ extern crate glob;
 use docopt::Docopt;
 use std::path::Path;
 use std::fs::File;
+use std::io::BufReader;
 
 const USAGE: &'static str = "
 enforcer for code rules
@@ -35,7 +36,6 @@ const TRAILING_SPACES: u8 = 1 << 1;
 
 fn check_file(path: &Path) -> std::io::Result<u8> {
     use std::io::prelude::*;
-    use std::io::BufReader;
     use std::fs::File;
     let mut result = 0;
 
@@ -56,42 +56,26 @@ fn check_file(path: &Path) -> std::io::Result<u8> {
     Ok(result)
 }
 
-fn clean_buf<T: std::io::BufRead + Sized>(reader: T) -> std::io::Result<Vec<String>> {
+fn clean_buf<T: std::io::BufRead + Sized>(reader: T) -> std::io::Result<String> {
     let mut cleaned : Vec<String> = Vec::new();
     for line in reader.lines().filter_map(|result| result.ok()) {
         cleaned.push(line.trim_right().to_string());
     }
-    Ok(cleaned)
+    Ok(cleaned.join("\n") + "\n")
 }
 
 fn clean_file(path: &Path) -> std::io::Result<()> {
     use std::io::prelude::*;
-    use std::io::BufReader;
 
-    trace!("clean_file {}", path.display());
     let f = try!(File::open(path));
-    trace!("opened file");
     let reader = BufReader::new(f);
-    let cleaned = try!(clean_buf(reader));
-    trace!("joining lines... ");
-    let res_string = cleaned.join("\n");
+    let res_string = try!(clean_buf(reader));
     let mut file = try!(File::create(path));
-    trace!("opened file again");
     try!(file.write_all(res_string.as_bytes()));
-    trace!("wrote file");
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    // use super::add_two;
-
-    #[test]
-    fn test_detect_illegal_characters() {
-        assert_eq!(4, 2);
-    }
-}
-
+#[allow(dead_code)]
 fn main() {
     use glob::glob;
     env_logger::init().unwrap();
@@ -120,3 +104,23 @@ fn main() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::clean_buf;
+
+    #[test]
+    fn test_clean_does_not_remove_trailing_newline() {
+        let content = "1\n2\n3\n4\n5\n";
+        let cleaned = clean_buf(content.as_bytes()).unwrap();
+        assert!(cleaned.eq(content));
+    }
+    #[test]
+    fn test_clean_trailing_whitespace() {
+        let content = "1 \n2";
+        let cleaned = clean_buf(content.as_bytes()).unwrap();
+        println!("{:?}", cleaned);
+        assert!(cleaned.eq("1\n2"));
+    }
+}
+
