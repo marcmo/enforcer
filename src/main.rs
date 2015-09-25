@@ -8,7 +8,7 @@ extern crate glob;
 use docopt::Docopt;
 use std::path::Path;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::prelude::*;
 
 const USAGE: &'static str = "
 enforcer for code rules
@@ -31,49 +31,81 @@ struct Args {
     flag_clean: bool,
     arg_glob: String,
 }
-const HAS_TABS: u8 = 1 << 0;
-const TRAILING_SPACES: u8 = 1 << 1;
+const HAS_TABS: u8               = 1 << 0;
+const TRAILING_SPACES: u8        = 1 << 1;
+const HAS_ILLEGAL_CHARACTERS: u8 = 1 << 2;
 
-fn check_file(path: &Path) -> std::io::Result<u8> {
-    use std::io::prelude::*;
-    use std::fs::File;
+
+fn check_content<'a>(input: &'a str) -> std::io::Result<u8> {
     let mut result = 0;
-
-    let f = try!(File::open(path));
-    let reader = BufReader::new(f);
-    for line in reader.lines().filter_map(|result| result.ok()) {
+    for line in input.lines_any() {
         if line.ends_with(' ') {
             result |= TRAILING_SPACES;
-        } else if line.contains("\t") {
-            result |= HAS_TABS;
-        } else if line.as_bytes().iter().any(|x| *x > 127) {
-            println!("file {} line \"{}\" contained illegal characters", path.display(), line);
         }
-        if result != 0 {
-            return Ok(result);
+        if line.contains("\t") {
+            result |= HAS_TABS;
+        }
+        if line.as_bytes().iter().any(|x| *x > 127) {
+            result |= HAS_ILLEGAL_CHARACTERS;
         }
     }
     Ok(result)
 }
 
+// fn remove_spaces<'a>(input: &'a str) -> Cow<'a, str> {
+//     if input.contains(' ') {
+//         input
+//         .chars()
+//         .filter(|&x| x != ' ')
+//         .collect::<std::string::String>()
+//         .into()
+//     } else {
+//         input.into()
+//     }
+// }
+
 fn clean_string(input: &str) -> std::io::Result<String> {
-    let v: Vec<&str> = input.lines_any().map(|line| line.trim_right()).collect();
-    if input.ends_with("\n") {
-        Ok(v.join("\n") + "\n")
-    } else {
-        Ok(v.join("\n"))
-    }
+    let v: Vec<&str> = input
+        .lines_any()
+        .map(|line| line.trim_right())
+        .collect();
+
+    Ok(if input.ends_with("\n") {
+            v.join("\n") + "\n"
+        } else {
+            v.join("\n")
+        })
 }
 
-fn clean_file(path: &Path) -> std::io::Result<()> {
-    use std::io::prelude::*;
+fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
+    use std::io::ErrorKind;
 
     let mut f = try!(File::open(path));
     let mut buffer = String::new();
-    try!(f.read_to_string(&mut buffer));
-    let res_string = try!(clean_string(&buffer));
-    let mut file = try!(File::create(path));
-    try!(file.write_all(res_string.as_bytes()));
+    let mut check = 0;
+    if let Err(e) = f.read_to_string(&mut buffer) {
+        match e.kind() {
+            ErrorKind::InvalidData => check = check | HAS_ILLEGAL_CHARACTERS,
+            _ => return Err(e),
+        }
+    }
+    // only check content if we could read the file
+    if check == 0 { check = try!(check_content(&buffer)); }
+    if (check & HAS_ILLEGAL_CHARACTERS) > 0 {
+        println!("{} had non ASCII characters!!!", path.display());
+    }
+    if (check & HAS_TABS) > 0 {
+        println!("{} had tabs!!!", path.display());
+    }
+    if (check & TRAILING_SPACES) > 0 {
+        println!("{} had trailing whitespaces!!!", path.display());
+        if clean {
+            println!("cleaning trailing whitespaces");
+            let res_string = try!(clean_string(&buffer));
+            let mut file = try!(File::create(path));
+            try!(file.write_all(res_string.as_bytes()));
+        }
+    }
     Ok(())
 }
 
@@ -89,19 +121,8 @@ fn main() {
     let pat = args.arg_glob.to_string();
     for entry in glob(&*pat).unwrap() {
         match entry {
-            Ok(path) => {
-                let check = check_file(path.as_path()).unwrap();
-                if (check & HAS_TABS) > 0 {
-                    println!("{} had tabs!!!", path.display());
-                }
-                if (check & TRAILING_SPACES) > 0 {
-                    println!("{} had trailing whitespaces!!!", path.display());
-                    if args.flag_clean {
-                        println!("cleaning trailing whitespaces");
-                        clean_file(path.as_path()).unwrap();
-                    }
-                }
-            },
+            Ok(path) => check_path(path.as_path(), args.flag_clean).unwrap(),
+                            // .unwrap_or_else(|e| e.exit()),
             Err(e) => println!("{:?}", e),
         }
     }
