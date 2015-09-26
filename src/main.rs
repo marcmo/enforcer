@@ -8,6 +8,7 @@ extern crate glob;
 use docopt::Docopt;
 use std::path::Path;
 use std::fs::File;
+use std::fs::metadata;
 use std::io::prelude::*;
 
 const USAGE: &'static str = "
@@ -77,6 +78,14 @@ fn clean_string(input: &str) -> std::io::Result<String> {
         })
 }
 
+fn is_dir(path: &Path) -> bool {
+    if let Ok(result) = metadata(&path) {
+        result.is_dir()
+    } else {
+        false
+    }
+}
+
 fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
     use std::io::ErrorKind;
 
@@ -119,10 +128,15 @@ fn main() {
                             .unwrap_or_else(|e| e.exit());
 
     let pat = args.arg_glob.to_string();
+
+    // for line in reader.lines().filter_map(|result| result.ok()) {
     for entry in glob(&*pat).unwrap() {
         match entry {
-            Ok(path) => check_path(path.as_path(), args.flag_clean).unwrap(),
-                            // .unwrap_or_else(|e| e.exit()),
+            Ok(path) => if !is_dir(path.as_path()) {
+                            check_path(path.as_path(), args.flag_clean)
+                                .ok()
+                                .expect(&format!("check_path for {:?} should work", path));
+                        },
             Err(e) => println!("{:?}", e),
         }
     }
