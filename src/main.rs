@@ -101,13 +101,13 @@ fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
     // only check content if we could read the file
     if check == 0 { check = try!(check_content(&buffer)); }
     if (check & HAS_ILLEGAL_CHARACTERS) > 0 {
-        println!("{} had non ASCII characters!!!", path.display());
+        println!("HAS_ILLEGAL_CHARACTERS:[{}]", path.display());
     }
     if (check & HAS_TABS) > 0 {
-        println!("{} had tabs!!!", path.display());
+        println!("HAS_TABS:[{}]", path.display());
     }
     if (check & TRAILING_SPACES) > 0 {
-        println!("{} had trailing whitespaces!!!", path.display());
+        println!("TRAILING_SPACES:[{}]", path.display());
         if clean {
             println!("cleaning trailing whitespaces");
             let res_string = try!(clean_string(&buffer));
