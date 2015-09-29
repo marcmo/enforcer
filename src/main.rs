@@ -11,6 +11,7 @@ use std::path::Path;
 use std::fs::File;
 use std::fs::metadata;
 use std::io::prelude::*;
+use glob::Pattern;
 
 const USAGE: &'static str = "
 enforcer for code rules
@@ -122,6 +123,18 @@ fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
 struct EnforcerCfg {
     unwanted: Vec<String>,
 }
+impl std::fmt::Debug for EnforcerCfg {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[unwanted]: {:?}", self.unwanted)
+    }
+}
+
+fn is_unwanted(path_elem: &str, unwanted_cfg: &EnforcerCfg) -> bool {
+    unwanted_cfg.unwanted.iter()
+        .any(|x| Pattern::new(x)
+            .unwrap()
+            .matches(path_elem))
+}
 
 fn load_config<'a>(input: &'a str) -> std::io::Result<EnforcerCfg> {
     use std::io::{Error, ErrorKind};
@@ -145,7 +158,6 @@ fn load_config<'a>(input: &'a str) -> std::io::Result<EnforcerCfg> {
 #[allow(dead_code)]
 fn main() {
     use glob::glob;
-    use std::ffi::OsStr;
     env_logger::init().unwrap();
 
     fn get_cfg() -> EnforcerCfg {
@@ -162,10 +174,6 @@ fn main() {
         unwanted_cfg
     }
 
-    fn is_unwanted(path: &OsStr, unwanted_cfg: &EnforcerCfg) -> bool {
-        unwanted_cfg.unwanted.iter().any(|x| path.to_os_string().into_string().unwrap() == *x)
-    }
-
     let args: Args = Docopt::new(USAGE)
                             .and_then(|d| d.decode())
                             .unwrap_or_else(|e| e.exit());
@@ -175,7 +183,7 @@ fn main() {
     let unwanted_cfg = get_cfg();
     for path in glob(&*pat).unwrap()
         .filter_map(Result::ok)
-        .filter(|x| !x.components().any(|y| is_unwanted(y.as_os_str(), &unwanted_cfg))) {
+        .filter(|x| !x.components().any(|y| is_unwanted(y.as_os_str().to_str().unwrap(), &unwanted_cfg))) {
             if !is_dir(path.as_path()) {
                 check_path(path.as_path(), args.flag_clean)
                     .ok()
@@ -188,6 +196,9 @@ fn main() {
 mod tests {
     use super::clean_string;
     use super::load_config;
+    use super::is_unwanted;
+    use glob::Pattern;
+    use super::EnforcerCfg;
 
     #[test]
     fn test_clean_does_not_remove_trailing_newline() {
@@ -209,6 +220,17 @@ mod tests {
         println!("starting2....{}", c);
         let cfg = load_config(c).unwrap();
         println!("{:?}", cfg.unwanted);
+    }
+    #[test]
+    fn test_glob() {
+        assert!(Pattern::new("build_*").unwrap().matches("build_Debug"));
+    }
+    #[test]
+    fn test_is_unwanted() {
+        let cfg = EnforcerCfg { unwanted: vec!["build_*".to_string(), ".git".to_string()]};
+        assert!(is_unwanted("build_Debug", &cfg));
+        assert!(is_unwanted(".git", &cfg));
+        assert!(!is_unwanted("bla", &cfg));
     }
 }
 
