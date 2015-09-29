@@ -117,6 +117,9 @@ impl std::fmt::Debug for EnforcerCfg {
         write!(f, "[unwanted]: {:?}", self.unwanted)
     }
 }
+fn default_cfg() -> EnforcerCfg {
+    EnforcerCfg { unwanted: vec![".git".to_string(), ".bake".to_string()]}
+}
 
 fn is_unwanted(path_elem: &str, unwanted_cfg: &EnforcerCfg) -> bool {
     unwanted_cfg.unwanted.iter()
@@ -128,29 +131,17 @@ fn is_unwanted(path_elem: &str, unwanted_cfg: &EnforcerCfg) -> bool {
 
 fn load_config<'a>(input: &'a str) -> std::io::Result<EnforcerCfg> {
     use std::io::{Error, ErrorKind};
-
     let mut parser = toml::Parser::new(input);
-    let default_cfg = EnforcerCfg { unwanted: vec![".git".to_string(), ".bake".to_string()]};
-    match parser.parse() {
-        Some(toml_) => {
-            match toml_.get("ignore") {
-                Some(entry) => {
-                    match entry.as_slice() {
-                        Some(val) => {
-                            let xs = val.iter()
-                                            .filter_map(|x| x.as_str())
-                                            .map(|v| v.to_string())
-                                            .collect();
-                            Ok(EnforcerCfg { unwanted: xs })
-                        }
-                        None => Ok(default_cfg)
-                    }
-                }
-                None => Ok(default_cfg)
-            }
-        }
-        None => Err(Error::new(ErrorKind::InvalidData, "could not parse the config"))
-    }
+    let default_err = Err(Error::new(ErrorKind::InvalidData, "could not parse the config"));
+    parser.parse().map_or(default_err, |toml_|
+            toml_.get("ignore").map_or(Ok(default_cfg()), |entry|
+                entry.as_slice().map_or(Ok(default_cfg()), |val| {
+                    let xs = val.iter()
+                        .filter_map(|x| x.as_str())
+                        .map(|v| v.to_string())
+                        .collect();
+                    Ok(EnforcerCfg { unwanted: xs })
+                })))
 }
 
 #[allow(dead_code)]
@@ -165,9 +156,8 @@ fn main() {
             try!(cfg_file.read_to_string(&mut buffer));
             load_config(&buffer[..])
         }
-        let default_cfg = EnforcerCfg { unwanted: vec![".git".to_string(), ".bake".to_string()]};
         let unwanted_cfg = read_unwanted()
-            .unwrap_or(default_cfg);
+            .unwrap_or(default_cfg());
         println!("loaded ignores: {:?}", unwanted_cfg.unwanted);
         unwanted_cfg
     }
@@ -202,6 +192,7 @@ mod tests {
     use super::is_unwanted;
     use glob::Pattern;
     use super::EnforcerCfg;
+    use super::default_cfg;
 
     #[test]
     fn test_clean_does_not_remove_trailing_newline() {
@@ -223,10 +214,10 @@ mod tests {
         assert_eq!(cfg.unwanted.len(), 2);
     }
     #[test]
-    #[should_panic]
     fn test_load_broken_config() {
         let c = include_str!("../samples/.enforcer_broken");
-        let _ = load_config(c).unwrap();
+        let cfg = load_config(c).unwrap();
+        assert_eq!(default_cfg().unwanted, cfg.unwanted);
     }
     #[test]
     fn test_glob() {
