@@ -130,17 +130,23 @@ fn load_config<'a>(input: &'a str) -> std::io::Result<EnforcerCfg> {
     use std::io::{Error, ErrorKind};
 
     let mut parser = toml::Parser::new(input);
+    let default_cfg = EnforcerCfg { unwanted: vec![".git".to_string(), ".bake".to_string()]};
     match parser.parse() {
-        Some(toml) => {
-            match toml["ignore"].as_slice() {
-                Some(val) => {
-                    let xs = val.iter()
-                                    .filter_map(|x| x.as_str())
-                                    .map(|v| v.to_string())
-                                    .collect();
-                    Ok(EnforcerCfg { unwanted: xs })
+        Some(toml_) => {
+            match toml_.get("ignore") {
+                Some(entry) => {
+                    match entry.as_slice() {
+                        Some(val) => {
+                            let xs = val.iter()
+                                            .filter_map(|x| x.as_str())
+                                            .map(|v| v.to_string())
+                                            .collect();
+                            Ok(EnforcerCfg { unwanted: xs })
+                        }
+                        None => Ok(default_cfg)
+                    }
                 }
-                None => Err(Error::new(ErrorKind::InvalidData, "could not find valid ignore section"))
+                None => Ok(default_cfg)
             }
         }
         None => Err(Error::new(ErrorKind::InvalidData, "could not parse the config"))
@@ -178,7 +184,9 @@ fn main() {
         .expect(&format!("glob has problems with {}", pat)[..])
         .filter_map(Result::ok)
         .filter(|x| !x.components()
-                        .any(|y| is_unwanted(y.as_os_str().to_str().unwrap(), &unwanted_cfg))) {
+                        .any(|y| is_unwanted(y.as_os_str()
+                                                .to_str()
+                                                .expect("blablalblalbla"), &unwanted_cfg))) {
             if !is_dir(path.as_path()) {
                 check_path(path.as_path(), args.flag_clean)
                     .ok()
