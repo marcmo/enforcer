@@ -55,29 +55,18 @@ fn check_content<'a>(input: &'a str) -> std::io::Result<u8> {
     Ok(result)
 }
 
-// fn remove_spaces<'a>(input: &'a str) -> Cow<'a, str> {
-//     if input.contains(' ') {
-//         input
-//         .chars()
-//         .filter(|&x| x != ' ')
-//         .collect::<std::string::String>()
-//         .into()
-//     } else {
-//         input.into()
-//     }
-// }
-
-fn clean_string(input: &str) -> std::io::Result<String> {
+fn clean_string(input: &str) -> String {
     let v: Vec<&str> = input
         .lines_any()
         .map(|line| line.trim_right())
         .collect();
 
-    Ok(if input.ends_with("\n") {
-            v.join("\n") + "\n"
-        } else {
-            v.join("\n")
-        })
+    if input.ends_with("\n") {
+        v.join("\n") + "\n"
+    }
+    else {
+        v.join("\n")
+    }
 }
 
 fn is_dir(path: &Path) -> bool {
@@ -112,7 +101,7 @@ fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
         println!("TRAILING_SPACES:[{}]", path.display());
         if clean {
             println!("cleaning trailing whitespaces");
-            let res_string = try!(clean_string(&buffer));
+            let res_string = clean_string(&buffer);
             let mut file = try!(File::create(path));
             try!(file.write_all(res_string.as_bytes()));
         }
@@ -132,7 +121,8 @@ impl std::fmt::Debug for EnforcerCfg {
 fn is_unwanted(path_elem: &str, unwanted_cfg: &EnforcerCfg) -> bool {
     unwanted_cfg.unwanted.iter()
         .any(|x| Pattern::new(x)
-            .unwrap()
+            .ok()
+            .expect(&format!("{} seems not to be a valid pattern", x)[..])
             .matches(path_elem))
 }
 
@@ -142,17 +132,19 @@ fn load_config<'a>(input: &'a str) -> std::io::Result<EnforcerCfg> {
     let mut parser = toml::Parser::new(input);
     match parser.parse() {
         Some(toml) => {
-            let toignore = toml["ignore"].as_slice().unwrap();
-            let mut xs = Vec::new();
-            for i in toignore {
-                xs.push(i.as_str().unwrap().to_string());
+            match toml["ignore"].as_slice() {
+                Some(val) => {
+                    let xs = val.iter()
+                                    .filter_map(|x| x.as_str())
+                                    .map(|v| v.to_string())
+                                    .collect();
+                    Ok(EnforcerCfg { unwanted: xs })
+                }
+                None => Err(Error::new(ErrorKind::InvalidData, "could not find valid ignore section"))
             }
-            return Ok(EnforcerCfg { unwanted: xs })
-        },
-        None => {
-            return Err(Error::new(ErrorKind::Other, "oh no!"));
         }
-    };
+        None => Err(Error::new(ErrorKind::InvalidData, "could not parse the config"))
+    }
 }
 
 #[allow(dead_code)]
@@ -181,9 +173,12 @@ fn main() {
     let pat = args.arg_glob.to_string();
 
     let unwanted_cfg = get_cfg();
-    for path in glob(&*pat).unwrap()
+    for path in glob(&*pat)
+        .ok()
+        .expect(&format!("glob has problems with {}", pat)[..])
         .filter_map(Result::ok)
-        .filter(|x| !x.components().any(|y| is_unwanted(y.as_os_str().to_str().unwrap(), &unwanted_cfg))) {
+        .filter(|x| !x.components()
+                        .any(|y| is_unwanted(y.as_os_str().to_str().unwrap(), &unwanted_cfg))) {
             if !is_dir(path.as_path()) {
                 check_path(path.as_path(), args.flag_clean)
                     .ok()
@@ -203,23 +198,27 @@ mod tests {
     #[test]
     fn test_clean_does_not_remove_trailing_newline() {
         let content = "1\n2\n3\n4\n5\n";
-        let cleaned = clean_string(content).unwrap();
+        let cleaned = clean_string(content);
         assert!(cleaned.eq(content));
     }
     #[test]
     fn test_clean_trailing_whitespace() {
         let content = "1 \n2";
-        let cleaned = clean_string(content).unwrap();
+        let cleaned = clean_string(content);
         println!("{:?}", cleaned);
         assert!(cleaned.eq("1\n2"));
     }
     #[test]
     fn test_load_simple_config() {
-        println!("starting....");
         let c = include_str!("../samples/.enforcer");
-        println!("starting2....{}", c);
         let cfg = load_config(c).unwrap();
-        println!("{:?}", cfg.unwanted);
+        assert_eq!(cfg.unwanted.len(), 2);
+    }
+    #[test]
+    #[should_panic]
+    fn test_load_broken_config() {
+        let c = include_str!("../samples/.enforcer_broken");
+        let _ = load_config(c).unwrap();
     }
     #[test]
     fn test_glob() {
