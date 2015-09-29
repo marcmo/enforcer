@@ -4,6 +4,7 @@ extern crate env_logger;
 extern crate rustc_serialize;
 extern crate docopt;
 extern crate glob;
+extern crate toml;
 
 use docopt::Docopt;
 use std::path::Path;
@@ -118,10 +119,52 @@ fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
     Ok(())
 }
 
+struct EnforcerCfg {
+    unwanted: Vec<String>,
+}
+
+fn load_config<'a>(input: &'a str) -> std::io::Result<EnforcerCfg> {
+    use std::io::{Error, ErrorKind};
+
+    let mut parser = toml::Parser::new(input);
+    match parser.parse() {
+        Some(toml) => {
+            let toignore = toml["ignore"].as_slice().unwrap();
+            let mut xs = Vec::new();
+            for i in toignore {
+                xs.push(i.as_str().unwrap().to_string());
+            }
+            return Ok(EnforcerCfg { unwanted: xs })
+        },
+        None => {
+            return Err(Error::new(ErrorKind::Other, "oh no!"));
+        }
+    };
+}
+
 #[allow(dead_code)]
 fn main() {
     use glob::glob;
+    use std::ffi::OsStr;
     env_logger::init().unwrap();
+
+    fn get_cfg() -> EnforcerCfg {
+        fn read_unwanted() -> std::io::Result<EnforcerCfg> {
+            let mut cfg_file = try!(File::open(".enforcer"));
+            let mut buffer = String::new();
+            try!(cfg_file.read_to_string(&mut buffer));
+            load_config(&buffer[..])
+        }
+        let default_cfg = EnforcerCfg { unwanted: vec![".git".to_string(), ".bake".to_string()]};
+        let unwanted_cfg = read_unwanted()
+            .unwrap_or(default_cfg);
+        println!("loaded ignores: {:?}", unwanted_cfg.unwanted);
+        unwanted_cfg
+    }
+
+    fn is_unwanted(path: &OsStr, unwanted_cfg: &EnforcerCfg) -> bool {
+        unwanted_cfg.unwanted.iter().any(|x| path.to_os_string().into_string().unwrap() == *x)
+    }
 
     let args: Args = Docopt::new(USAGE)
                             .and_then(|d| d.decode())
@@ -129,22 +172,22 @@ fn main() {
 
     let pat = args.arg_glob.to_string();
 
-    // for line in reader.lines().filter_map(|result| result.ok()) {
-    for entry in glob(&*pat).unwrap() {
-        match entry {
-            Ok(path) => if !is_dir(path.as_path()) {
-                            check_path(path.as_path(), args.flag_clean)
-                                .ok()
-                                .expect(&format!("check_path for {:?} should work", path));
-                        },
-            Err(e) => println!("{:?}", e),
-        }
+    let unwanted_cfg = get_cfg();
+    for path in glob(&*pat).unwrap()
+        .filter_map(Result::ok)
+        .filter(|x| !x.components().any(|y| is_unwanted(y.as_os_str(), &unwanted_cfg))) {
+            if !is_dir(path.as_path()) {
+                check_path(path.as_path(), args.flag_clean)
+                    .ok()
+                    .expect(&format!("check_path for {:?} should work", path));
+            }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::clean_string;
+    use super::load_config;
 
     #[test]
     fn test_clean_does_not_remove_trailing_newline() {
@@ -158,6 +201,14 @@ mod tests {
         let cleaned = clean_string(content).unwrap();
         println!("{:?}", cleaned);
         assert!(cleaned.eq("1\n2"));
+    }
+    #[test]
+    fn test_load_simple_config() {
+        println!("starting....");
+        let c = include_str!("../samples/.enforcer");
+        println!("starting2....{}", c);
+        let cfg = load_config(c).unwrap();
+        println!("{:?}", cfg.unwanted);
     }
 }
 
