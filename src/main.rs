@@ -19,7 +19,7 @@ enforcer for code rules
 Usage:
   enforcer <glob> [-c|--clean]
   enforcer (-h | --help)
-  enforcer --version
+  enforcer (-v | --version)
 
 Options:
   -h --help     Show this screen.
@@ -123,7 +123,10 @@ fn default_cfg() -> EnforcerCfg {
     EnforcerCfg { unwanted: vec![".git".to_string(), ".bake".to_string()]}
 }
 
-fn is_unwanted(path_elem: &str, unwanted_cfg: &EnforcerCfg) -> bool {
+fn is_unwanted(comp: std::path::Component, unwanted_cfg: &EnforcerCfg) -> bool {
+    let path_elem = comp.as_os_str()
+                        .to_str()
+                        .expect(&format!("illegal path component {:?}", comp)[..]);
     unwanted_cfg.unwanted.iter()
         .any(|x| Pattern::new(x)
             .ok()
@@ -179,9 +182,7 @@ fn main() {
         .expect(&format!("glob has problems with {}", pat)[..])
         .filter_map(Result::ok)
         .filter(|x| !x.components()
-                        .any(|y| is_unwanted(y.as_os_str()
-                                                .to_str()
-                                                .expect("blablalblalbla"), &unwanted_cfg))) {
+                        .any(|y| is_unwanted(y, &unwanted_cfg))) {
             if !is_dir(path.as_path()) {
                 check_path(path.as_path(), args.flag_clean)
                     .ok()
@@ -198,6 +199,8 @@ mod tests {
     use glob::Pattern;
     use super::EnforcerCfg;
     use super::default_cfg;
+    use std::ffi::OsStr;
+    use std::path::Component::Normal;
 
     #[test]
     fn test_clean_does_not_remove_trailing_newline() {
@@ -231,9 +234,9 @@ mod tests {
     #[test]
     fn test_is_unwanted() {
         let cfg = EnforcerCfg { unwanted: vec!["build_*".to_string(), ".git".to_string()]};
-        assert!(is_unwanted("build_Debug", &cfg));
-        assert!(is_unwanted(".git", &cfg));
-        assert!(!is_unwanted("bla", &cfg));
+        assert!(is_unwanted(Normal(OsStr::new("build_Debug")), &cfg));
+        assert!(is_unwanted(Normal(OsStr::new(".git")), &cfg));
+        assert!(!is_unwanted(Normal(OsStr::new("bla")), &cfg));
     }
 }
 
