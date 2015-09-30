@@ -12,6 +12,7 @@ use std::fs::File;
 use std::fs::metadata;
 use std::io::prelude::*;
 use glob::Pattern;
+use rustc_serialize::Decodable;
 
 const USAGE: &'static str = "
 enforcer for code rules
@@ -111,23 +112,19 @@ fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, RustcDecodable, PartialEq)]
 struct EnforcerCfg {
-    unwanted: Vec<String>,
-}
-impl std::fmt::Debug for EnforcerCfg {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[unwanted]: {:?}", self.unwanted)
-    }
+    ignore: Vec<String>,
 }
 fn default_cfg() -> EnforcerCfg {
-    EnforcerCfg { unwanted: vec![".git".to_string(), ".bake".to_string()]}
+    EnforcerCfg { ignore: [".git", ".bake"].iter().map(|x| x.to_string()).collect() }
 }
 
-fn is_unwanted(comp: std::path::Component, unwanted_cfg: &EnforcerCfg) -> bool {
+fn is_unwanted(comp: std::path::Component, enforcer_cfg: &EnforcerCfg) -> bool {
     let path_elem = comp.as_os_str()
                         .to_str()
                         .expect(&format!("illegal path component {:?}", comp)[..]);
-    unwanted_cfg.unwanted.iter()
+    enforcer_cfg.ignore.iter()
         .any(|x| Pattern::new(x)
             .ok()
             .expect(&format!("{} seems not to be a valid pattern", x)[..])
@@ -137,16 +134,17 @@ fn is_unwanted(comp: std::path::Component, unwanted_cfg: &EnforcerCfg) -> bool {
 fn load_config<'a>(input: &'a str) -> std::io::Result<EnforcerCfg> {
     use std::io::{Error, ErrorKind};
     let mut parser = toml::Parser::new(input);
-    let default_err = Err(Error::new(ErrorKind::InvalidData, "could not parse the config"));
-    parser.parse().map_or(default_err, |toml_|
-            toml_.get("ignore").map_or(Ok(default_cfg()), |entry|
-                entry.as_slice().map_or(Ok(default_cfg()), |val| {
-                    let xs = val.iter()
-                        .filter_map(|x| x.as_str())
-                        .map(|v| v.to_string())
-                        .collect();
-                    Ok(EnforcerCfg { unwanted: xs })
-                })))
+    fn default_err() -> Error {
+        Error::new(ErrorKind::InvalidData, "could not parse the config")
+    }
+
+    parser.parse().map_or(Err(default_err()), |toml| {
+        let mut decoder = toml::Decoder::new(toml::Value::Table(toml));
+        EnforcerCfg::decode(&mut decoder)
+            .ok()
+            .map_or(Err(default_err()), |config|
+                Ok(config))
+    })
 }
 
 #[allow(dead_code)]
@@ -155,16 +153,16 @@ fn main() {
     env_logger::init().unwrap();
 
     fn get_cfg() -> EnforcerCfg {
-        fn read_unwanted() -> std::io::Result<EnforcerCfg> {
+        fn read_enforcer_config() -> std::io::Result<EnforcerCfg> {
             let mut cfg_file = try!(File::open(".enforcer"));
             let mut buffer = String::new();
             try!(cfg_file.read_to_string(&mut buffer));
             load_config(&buffer[..])
         }
-        let unwanted_cfg = read_unwanted()
+        let enforcer_cfg = read_enforcer_config()
             .unwrap_or(default_cfg());
-        println!("loaded ignores: {:?}", unwanted_cfg.unwanted);
-        unwanted_cfg
+        println!("loaded ignores: {:?}", enforcer_cfg.ignore);
+        enforcer_cfg
     }
 
     let args: Args = Docopt::new(USAGE)
@@ -176,13 +174,13 @@ fn main() {
     }
     let pat = args.arg_glob.to_string();
 
-    let unwanted_cfg = get_cfg();
+    let enforcer_cfg = get_cfg();
     for path in glob(&*pat)
         .ok()
         .expect(&format!("glob has problems with {}", pat)[..])
         .filter_map(Result::ok)
         .filter(|x| !x.components()
-                        .any(|y| is_unwanted(y, &unwanted_cfg))) {
+                        .any(|y| is_unwanted(y, &enforcer_cfg))) {
             if !is_dir(path.as_path()) {
                 check_path(path.as_path(), args.flag_clean)
                     .ok()
@@ -198,7 +196,6 @@ mod tests {
     use super::is_unwanted;
     use glob::Pattern;
     use super::EnforcerCfg;
-    use super::default_cfg;
     use std::ffi::OsStr;
     use std::path::Component::Normal;
 
@@ -219,13 +216,17 @@ mod tests {
     fn test_load_simple_config() {
         let c = include_str!("../samples/.enforcer");
         let cfg = load_config(c).unwrap();
-        assert_eq!(cfg.unwanted.len(), 2);
+        assert_eq!(cfg.ignore.len(), 2);
+        let expected = EnforcerCfg { ignore: [".git", ".repo"].iter().map(|x| x.to_string()).collect() };
+        assert_eq!(expected.ignore, cfg.ignore);
+        assert_eq!(expected, cfg);
     }
     #[test]
     fn test_load_broken_config() {
         let c = include_str!("../samples/.enforcer_broken");
         let cfg = load_config(c).unwrap();
-        assert_eq!(default_cfg().unwanted, cfg.unwanted);
+        let expected = EnforcerCfg { ignore: [".git", ".repo"].iter().map(|x| x.to_string()).collect() };
+        assert!(expected.ignore != cfg.ignore);
     }
     #[test]
     fn test_glob() {
@@ -233,7 +234,7 @@ mod tests {
     }
     #[test]
     fn test_is_unwanted() {
-        let cfg = EnforcerCfg { unwanted: vec!["build_*".to_string(), ".git".to_string()]};
+        let cfg = EnforcerCfg { ignore: vec!["build_*".to_string(), ".git".to_string()]};
         assert!(is_unwanted(Normal(OsStr::new("build_Debug")), &cfg));
         assert!(is_unwanted(Normal(OsStr::new(".git")), &cfg));
         assert!(!is_unwanted(Normal(OsStr::new("bla")), &cfg));
