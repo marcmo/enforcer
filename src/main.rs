@@ -23,16 +23,18 @@ Usage:
 
 Options:
   -h --help     Show this screen.
-  --version     Show version.
+  -v --version  Show version.
   --count       only count found entries
   -c --clean    clean up trailing whitespaces
 ";
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, RustcDecodable)]
 struct Args {
     flag_count: bool,
     flag_clean: bool,
     arg_glob: String,
+    flag_version: bool,
 }
 const HAS_TABS: u8               = 1 << 0;
 const TRAILING_SPACES: u8        = 1 << 1;
@@ -166,6 +168,9 @@ fn main() {
                             .and_then(|d| d.decode())
                             .unwrap_or_else(|e| e.exit());
 
+    if args.flag_version {
+        println!("  Version: {}", VERSION);
+    }
     let pat = args.arg_glob.to_string();
 
     let unwanted_cfg = get_cfg();
