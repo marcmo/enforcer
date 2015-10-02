@@ -43,7 +43,7 @@ const TRAILING_SPACES: u8        = 1 << 1;
 const HAS_ILLEGAL_CHARACTERS: u8 = 1 << 2;
 
 
-fn check_content<'a>(input: &'a str) -> std::io::Result<u8> {
+fn check_content<'a>(input: &'a str, filename: &str) -> std::io::Result<u8> {
     let mut result = 0;
     let mut i: u32 = 0;
     for line in input.lines_any() {
@@ -55,7 +55,7 @@ fn check_content<'a>(input: &'a str) -> std::io::Result<u8> {
             result |= HAS_TABS;
         }
         if line.as_bytes().iter().any(|x| *x > 127) {
-            println!("non ASCII line [{}]: {}", i, line);
+            println!("non ASCII line [{}]: {} [{}]", i, line, filename);
             result |= HAS_ILLEGAL_CHARACTERS;
         }
     }
@@ -98,7 +98,7 @@ fn report_offending_line(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
+fn check_path(path: &Path, clean: bool) -> std::io::Result<u8> {
     use std::io::ErrorKind;
 
     let mut f = try!(File::open(path));
@@ -114,7 +114,7 @@ fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
         }
     }
     // only check content if we could read the file
-    if check == 0 { check = try!(check_content(&buffer)); }
+    if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"))); }
     if (check & HAS_TABS) > 0 {
         println!("HAS_TABS:[{}]", path.display());
     }
@@ -127,7 +127,7 @@ fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
             try!(file.write_all(res_string.as_bytes()));
         }
     }
-    Ok(())
+    Ok(check)
 }
 
 #[derive(Debug, RustcDecodable, PartialEq)]
@@ -186,7 +186,6 @@ fn main() {
         }
         let enforcer_cfg = read_enforcer_config()
             .unwrap_or(default_cfg());
-        println!("loaded ignores: {:?}", enforcer_cfg.ignore);
         enforcer_cfg
     }
 
@@ -215,13 +214,20 @@ fn main() {
                         .any(|y| is_unwanted(y, to_ignore))).collect()
     }
     let paths: Vec<std::path::PathBuf> = pats.iter().flat_map(|pat| find_matches(pat, &cfg_ignores)).collect();
+    let mut checked_files: u32 = 0;
+    let mut had_tabs: u32 = 0;
+    let mut had_illegals: u32 = 0;
     for path in paths {
         if !is_dir(path.as_path()) {
-            check_path(path.as_path(), args.flag_clean)
+            checked_files += 1;
+            let r = check_path(path.as_path(), args.flag_clean)
                 .ok()
                 .expect(&format!("check_path for {:?} should work", path));
+            if (r & HAS_TABS) > 0 { had_tabs += 1 }
+            if (r & HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
         }
     }
+    println!("checked {} files! ({} had tabs, {} had illegal characters)", checked_files, had_tabs, had_illegals);
 }
 
 #[cfg(test)]
