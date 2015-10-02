@@ -23,6 +23,7 @@ check source code for certain metrics (intended as a pre-commit hook)
     ignore = [".git", ".repo"]
     globs = ["**/*.c", "**/*.cpp", "**/*.h"]
 
-If you place a .enforcer file with this content (using the [TOML](https://github.com/toml-lang/toml)
-format) all files ending in `.c`, `.cpp` and `.h` will be checked. (`.git` and `.repo` directories will be ignored.)
+If you place a `.enforcer` file with the above content in your project directory, all files ending
+in `.c`, `.cpp` and `.h` will be checked. (`.git` and `.repo` directories will be ignored.)
+The config file uses the [TOML](https://github.com/toml-lang/toml) format.
 
