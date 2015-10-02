@@ -36,7 +36,6 @@ struct Args {
     flag_count: bool,
     flag_clean: bool,
     flag_g: Vec<String>,
-    // arg_glob: Option<String>,
     flag_version: bool,
 }
 const HAS_TABS: u8               = 1 << 0;
@@ -46,7 +45,9 @@ const HAS_ILLEGAL_CHARACTERS: u8 = 1 << 2;
 
 fn check_content<'a>(input: &'a str) -> std::io::Result<u8> {
     let mut result = 0;
+    let mut i: u32 = 0;
     for line in input.lines_any() {
+        i += 1;
         if line.ends_with(' ') {
             result |= TRAILING_SPACES;
         }
@@ -54,6 +55,7 @@ fn check_content<'a>(input: &'a str) -> std::io::Result<u8> {
             result |= HAS_TABS;
         }
         if line.as_bytes().iter().any(|x| *x > 127) {
+            println!("non ASCII line [{}]: {}", i, line);
             result |= HAS_ILLEGAL_CHARACTERS;
         }
     }
@@ -82,6 +84,20 @@ fn is_dir(path: &Path) -> bool {
     }
 }
 
+fn report_offending_line(path: &Path) -> std::io::Result<()> {
+    use std::io::BufReader;
+    let mut i: u32 = 1;
+    let f = try!(File::open(path));
+    let file = BufReader::new(f);
+    for line in file.lines() {
+        match line.ok() {
+            Some(_) => i = i + 1,
+            None => println!("offending line {} in file [{}]", i, path.display()),
+        }
+    }
+    Ok(())
+}
+
 fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
     use std::io::ErrorKind;
 
@@ -90,15 +106,15 @@ fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
     let mut check = 0;
     if let Err(e) = f.read_to_string(&mut buffer) {
         match e.kind() {
-            ErrorKind::InvalidData => check = check | HAS_ILLEGAL_CHARACTERS,
+            ErrorKind::InvalidData => {
+                check = check | HAS_ILLEGAL_CHARACTERS;
+                let _ = report_offending_line(path);
+            },
             _ => return Err(e),
         }
     }
     // only check content if we could read the file
     if check == 0 { check = try!(check_content(&buffer)); }
-    if (check & HAS_ILLEGAL_CHARACTERS) > 0 {
-        println!("HAS_ILLEGAL_CHARACTERS:[{}]", path.display());
-    }
     if (check & HAS_TABS) > 0 {
         println!("HAS_TABS:[{}]", path.display());
     }
