@@ -18,11 +18,12 @@ const USAGE: &'static str = "
 enforcer for code rules
 
 Usage:
-  enforcer <glob> [-c|--clean]
+  enforcer [-g GLOB...] [-c|--clean]
   enforcer (-h | --help)
   enforcer (-v | --version)
 
 Options:
+  -g GLOB       use these glob patterns (e.g. \"**/*.h\")
   -h --help     Show this screen.
   -v --version  Show version.
   --count       only count found entries
@@ -34,7 +35,8 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 struct Args {
     flag_count: bool,
     flag_clean: bool,
-    arg_glob: String,
+    flag_g: Vec<String>,
+    // arg_glob: Option<String>,
     flag_version: bool,
 }
 const HAS_TABS: u8               = 1 << 0;
@@ -115,16 +117,23 @@ fn check_path(path: &Path, clean: bool) -> std::io::Result<()> {
 #[derive(Debug, RustcDecodable, PartialEq)]
 struct EnforcerCfg {
     ignore: Vec<String>,
-}
-fn default_cfg() -> EnforcerCfg {
-    EnforcerCfg { ignore: [".git", ".bake"].iter().map(|x| x.to_string()).collect() }
+    globs: Vec<String>,
 }
 
-fn is_unwanted(comp: std::path::Component, enforcer_cfg: &EnforcerCfg) -> bool {
+fn s(x: &str) -> String { x.to_string() }
+
+fn default_cfg() -> EnforcerCfg {
+    EnforcerCfg {
+        ignore: vec![s(".git"), s(".bake"), s(".repo")],
+        globs : vec![s("**/*.c"), s("**/*.cpp"), s("**/*.h")],
+    }
+}
+
+fn is_unwanted(comp: std::path::Component, to_ignore: &Vec<String>) -> bool {
     let path_elem = comp.as_os_str()
                         .to_str()
                         .expect(&format!("illegal path component {:?}", comp)[..]);
-    enforcer_cfg.ignore.iter()
+    to_ignore.iter()
         .any(|x| Pattern::new(x)
             .ok()
             .expect(&format!("{} seems not to be a valid pattern", x)[..])
@@ -172,20 +181,30 @@ fn main() {
     if args.flag_version {
         println!("  Version: {}", VERSION);
     }
-    let pat = args.arg_glob.to_string();
-
     let enforcer_cfg = get_cfg();
-    for path in glob(&*pat)
-        .ok()
-        .expect(&format!("glob has problems with {}", pat)[..])
-        .filter_map(Result::ok)
-        .filter(|x| !x.components()
-                        .any(|y| is_unwanted(y, &enforcer_cfg))) {
-            if !is_dir(path.as_path()) {
-                check_path(path.as_path(), args.flag_clean)
-                    .ok()
-                    .expect(&format!("check_path for {:?} should work", path));
-            }
+    let cfg_ignores = enforcer_cfg.ignore;
+    let cfg_globs = enforcer_cfg.globs;
+    let pats = if args.flag_g.len() > 0 {
+        args.flag_g
+    } else {
+        cfg_globs
+    };
+
+    fn find_matches<'a>(pat: &str, to_ignore: &Vec<String>) -> Vec<std::path::PathBuf> {
+        glob(&*pat) // -> Result<Paths, PatternError>
+            .ok()   // -> Option<Paths>
+            .expect(&format!("glob has problems with {}", pat)[..]) // -> Paths (Iterator ofer GlobResult)
+            .filter_map(Result::ok) // ignore unreadable paths -> Iterator over PathBuf
+            .filter(|x| !x.components()
+                        .any(|y| is_unwanted(y, to_ignore))).collect()
+    }
+    let paths: Vec<std::path::PathBuf> = pats.iter().flat_map(|pat| find_matches(pat, &cfg_ignores)).collect();
+    for path in paths {
+        if !is_dir(path.as_path()) {
+            check_path(path.as_path(), args.flag_clean)
+                .ok()
+                .expect(&format!("check_path for {:?} should work", path));
+        }
     }
 }
 
@@ -194,6 +213,7 @@ mod tests {
     use super::clean_string;
     use super::load_config;
     use super::is_unwanted;
+    use super::s;
     use glob::Pattern;
     use super::EnforcerCfg;
     use std::ffi::OsStr;
@@ -217,7 +237,10 @@ mod tests {
         let c = include_str!("../samples/.enforcer");
         let cfg = load_config(c).unwrap();
         assert_eq!(cfg.ignore.len(), 2);
-        let expected = EnforcerCfg { ignore: [".git", ".repo"].iter().map(|x| x.to_string()).collect() };
+        let expected = EnforcerCfg {
+            ignore: vec![s(".git"), s(".repo")],
+            globs : vec![s("**/*.c"), s("**/*.cpp"), s("**/*.h")],
+        };
         assert_eq!(expected.ignore, cfg.ignore);
         assert_eq!(expected, cfg);
     }
@@ -225,7 +248,10 @@ mod tests {
     fn test_load_broken_config() {
         let c = include_str!("../samples/.enforcer_broken");
         let cfg = load_config(c).unwrap();
-        let expected = EnforcerCfg { ignore: [".git", ".repo"].iter().map(|x| x.to_string()).collect() };
+        let expected = EnforcerCfg {
+            ignore: vec![s(".git"), s(".repo")],
+            globs : vec![s("**/*.c"), s("**/*.cpp"), s("**/*.h")],
+        };
         assert!(expected.ignore != cfg.ignore);
     }
     #[test]
@@ -234,10 +260,10 @@ mod tests {
     }
     #[test]
     fn test_is_unwanted() {
-        let cfg = EnforcerCfg { ignore: vec!["build_*".to_string(), ".git".to_string()]};
-        assert!(is_unwanted(Normal(OsStr::new("build_Debug")), &cfg));
-        assert!(is_unwanted(Normal(OsStr::new(".git")), &cfg));
-        assert!(!is_unwanted(Normal(OsStr::new("bla")), &cfg));
+        let cfg = EnforcerCfg { ignore: vec![s("build_*"), s(".git")], globs: vec![]};
+        assert!(is_unwanted(Normal(OsStr::new("build_Debug")), &cfg.ignore));
+        assert!(is_unwanted(Normal(OsStr::new(".git")), &cfg.ignore));
+        assert!(!is_unwanted(Normal(OsStr::new("bla")), &cfg.ignore));
     }
 }
 
