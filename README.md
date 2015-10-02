@@ -1,4 +1,7 @@
-# enforcer
+[![Build Status](https://travis-ci.org/marcmo/enforcer.svg?branch=master)](http://travis-ci.org/marcmo/enforcer)
+
+enforcer
+========
 
 check source code for certain metrics (intended as a pre-commit hook)
 
