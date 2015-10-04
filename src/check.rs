@@ -151,3 +151,62 @@ pub fn read_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
     })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::clean_string;
+    use super::read_config;
+    use super::is_unwanted;
+    use super::s;
+    use glob::Pattern;
+    use super::EnforcerCfg;
+    use std::ffi::OsStr;
+    use std::path::Component::Normal;
+
+    #[test]
+    fn test_clean_does_not_remove_trailing_newline() {
+        let content = "1\n2\n3\n4\n5\n";
+        let cleaned = clean_string(content);
+        assert!(cleaned.eq(content));
+    }
+    #[test]
+    fn test_clean_trailing_whitespace() {
+        let content = "1 \n2";
+        let cleaned = clean_string(content);
+        println!("{:?}", cleaned);
+        assert!(cleaned.eq("1\n2"));
+    }
+    #[test]
+    fn test_load_simple_config() {
+        let c = include_str!("../samples/.enforcer");
+        let cfg = read_config(c).unwrap();
+        assert_eq!(cfg.ignore.len(), 2);
+        let expected = EnforcerCfg {
+            ignore: vec![s(".git"), s(".repo")],
+            globs : vec![s("**/*.c"), s("**/*.cpp"), s("**/*.h")],
+        };
+        assert_eq!(expected.ignore, cfg.ignore);
+        assert_eq!(expected, cfg);
+    }
+    #[test]
+    fn test_load_broken_config() {
+        let c = include_str!("../samples/.enforcer_broken");
+        let cfg = read_config(c).unwrap();
+        let expected = EnforcerCfg {
+            ignore: vec![s(".git"), s(".repo")],
+            globs : vec![s("**/*.c"), s("**/*.cpp"), s("**/*.h")],
+        };
+        assert!(expected.ignore != cfg.ignore);
+    }
+    #[test]
+    fn test_glob() {
+        assert!(Pattern::new("build_*").unwrap().matches("build_Debug"));
+    }
+    #[test]
+    fn test_is_unwanted() {
+        let cfg = EnforcerCfg { ignore: vec![s("build_*"), s(".git")], globs: vec![]};
+        assert!(is_unwanted(Normal(OsStr::new("build_Debug")), &cfg.ignore));
+        assert!(is_unwanted(Normal(OsStr::new(".git")), &cfg.ignore));
+        assert!(!is_unwanted(Normal(OsStr::new("bla")), &cfg.ignore));
+    }
+}
+
