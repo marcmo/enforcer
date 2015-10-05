@@ -8,14 +8,6 @@ use rustc_serialize::Decodable;
 use glob::Pattern;
 use toml;
 
-pub fn get_string() -> io::Result<String> {
-    let mut buffer = String::new();
-
-    try!(io::stdin().read_line(&mut buffer));
-
-    Ok(buffer)
-}
-
 pub const HAS_TABS: u8               = 1 << 0;
 pub const TRAILING_SPACES: u8        = 1 << 1;
 pub const HAS_ILLEGAL_CHARACTERS: u8 = 1 << 2;
@@ -204,6 +196,7 @@ mod tests {
     #[test]
     fn test_is_unwanted() {
         let cfg = EnforcerCfg { ignore: vec![s("build_*"), s(".git")], globs: vec![]};
+        assert!(is_unwanted(Normal(OsStr::new("build_")), &cfg.ignore));
         assert!(is_unwanted(Normal(OsStr::new("build_Debug")), &cfg.ignore));
         assert!(is_unwanted(Normal(OsStr::new(".git")), &cfg.ignore));
         assert!(!is_unwanted(Normal(OsStr::new("bla")), &cfg.ignore));

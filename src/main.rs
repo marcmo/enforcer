@@ -28,7 +28,6 @@ Options:
 ";
 #[derive(Debug, RustcDecodable)]
 struct Args {
-    flag_count: bool,
     flag_clean: bool,
     flag_g: Vec<String>,
     flag_version: bool,
@@ -38,9 +37,8 @@ struct Args {
 fn main() {
     use glob::glob;
     env_logger::init().unwrap();
-    debug!("check content of");
 
-    fn get_cfg() -> check::EnforcerCfg {
+    let get_cfg = || -> check::EnforcerCfg {
         fn read_enforcer_config() -> std::io::Result<check::EnforcerCfg> {
             let mut cfg_file = try!(File::open(".enforcer"));
             let mut buffer = String::new();
@@ -50,7 +48,7 @@ fn main() {
         let enforcer_cfg = read_enforcer_config()
             .unwrap_or(check::default_cfg());
         enforcer_cfg
-    }
+    };
 
     let args: Args = Docopt::new(USAGE)
                             .and_then(|d| d.decode())
@@ -68,18 +66,21 @@ fn main() {
         cfg_globs
     };
 
-    fn find_matches<'a>(pat: &str, to_ignore: &Vec<String>) -> Vec<std::path::PathBuf> {
-        glob(&*pat) // -> Result<Paths, PatternError>
+    let find_matches = || -> Vec<std::path::PathBuf> {
+        let relevant = |pat: &str| -> Vec<std::path::PathBuf> {
+            glob(&*pat) // -> Result<Paths, PatternError>
             .ok()   // -> Option<Paths>
             .expect(&format!("glob has problems with {}", pat)[..]) // -> Paths (Iterator ofer GlobResult)
             .filter_map(Result::ok) // ignore unreadable paths -> Iterator over PathBuf
             .filter(|x| !x.components()
-                        .any(|y| check::is_unwanted(y, to_ignore))).collect()
-    }
-    let paths: Vec<std::path::PathBuf> = pats.iter().flat_map(|pat| find_matches(pat, &cfg_ignores)).collect();
+                        .any(|y| check::is_unwanted(y, &cfg_ignores))).collect()
+        };
+        pats.iter().flat_map(|pat| relevant(&pat[..])).collect()
+    };
     let mut checked_files: u32 = 0;
     let mut had_tabs: u32 = 0;
     let mut had_illegals: u32 = 0;
+    let paths = find_matches();
     for path in paths {
         if !check::is_dir(path.as_path()) {
             checked_files += 1;
