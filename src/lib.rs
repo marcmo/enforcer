@@ -5,3 +5,4 @@ extern crate toml;
 #[macro_use] extern crate log;
 
 pub mod check;
+pub mod clean;
