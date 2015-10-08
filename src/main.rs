@@ -79,6 +79,7 @@ fn main() {
     };
     let mut checked_files: u32 = 0;
     let mut had_tabs: u32 = 0;
+    let mut had_trailing_ws: u32 = 0;
     let mut had_illegals: u32 = 0;
     let paths = find_matches();
     for path in paths {
@@ -88,9 +89,11 @@ fn main() {
                 .ok()
                 .expect(&format!("check_path for {:?} should work", path));
             if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
+            if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
             if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
         }
     }
-    println!("checked {} files! ({} had tabs, {} had illegal characters)", checked_files, had_tabs, had_illegals);
+    println!("checked {} files! [HAD_TABS:{}][ILLEGAL_CHARS:{}][TRAILING_SPACES:{}]",
+             checked_files, had_tabs, had_illegals, had_trailing_ws);
 }
 

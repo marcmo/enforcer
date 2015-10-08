@@ -72,20 +72,30 @@ pub fn check_path(path: &Path, clean: bool) -> io::Result<u8> {
     }
     // only check content if we could read the file
     if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"))); }
-    if (check & HAS_TABS) > 0 {
-        println!("HAS_TABS:[{}]", path.display());
+    if clean {
+        let no_spaces = if (check & HAS_TABS) > 0 {
+            println!("HAS_TABS:[{}] -> converting to spaces", path.display());
+            clean::space_tabs_conversion(buffer, clean::TabStrategy::Untabify)
+        } else { buffer };
+        let res_string = if (check & TRAILING_SPACES) > 0 {
+            println!("TRAILING_SPACES:[{}] -> removing", path.display());
+            clean::remove_trailing_whitespaces(no_spaces)
+        } else { no_spaces };
+        let mut file = try!(File::create(path));
+        try!(file.write_all(res_string.as_bytes()));
     }
-    if (check & TRAILING_SPACES) > 0 {
-        println!("TRAILING_SPACES:[{}]", path.display());
-        if clean {
-            println!("cleaning trailing whitespaces");
-            let no_whitespaces_string = clean::remove_trailing_whitespaces(&buffer);
-            let res_string = clean::space_tabs_conversion(no_whitespaces_string, clean::TabStrategy::Untabify);
-            let mut file = try!(File::create(path));
-            try!(file.write_all(res_string.as_bytes()));
-        }
-    }
+    else /* report only */ { report(check, &path) }
     Ok(check)
+}
+
+fn report(check: u8, path: &Path) -> () {
+    if (check & HAS_TABS) > 0 && (check & TRAILING_SPACES) > 0 {
+        println!("HAS_TABS && TRAILING_SPACES:[{}]", path.display());
+    } else if (check & HAS_TABS) > 0 {
+        println!("HAS_TABS:[{}]", path.display());
+    } else if (check & TRAILING_SPACES) > 0 {
+        println!("TRAILING_SPACES:[{}]", path.display());
+    }
 }
 
 #[derive(Debug, RustcDecodable, PartialEq)]

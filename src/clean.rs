@@ -39,13 +39,14 @@ pub fn space_tabs_conversion<S>(content: S, s: TabStrategy) -> String where S: I
     res
 }
 
-pub fn remove_trailing_whitespaces(input: &str) -> String {
-    let v: Vec<&str> = input
+pub fn remove_trailing_whitespaces<S>(input: S) -> String where S: Into<String>{
+    let s = input.into();
+    let v: Vec<&str> = s
         .lines_any()
         .map(|line| line.trim_right())
         .collect();
 
-    if input.ends_with("\n") {
+    if s.ends_with("\n") {
         v.join("\n") + "\n"
     }
     else {
@@ -91,21 +92,21 @@ mod tests {
         let c = include_str!("../samples/mixedTabsAndSpaces.cpp");
         let expected = include_str!("../samples/corrected/mixedTabsAndSpaces.cpp");
         let cleaned = space_tabs_conversion(c, TabStrategy::Untabify);
-        assert!(cleaned.eq(expected));
+        assert_eq!(cleaned, expected);
     }
     #[test]
     fn test_file_with_tabs_and_spaces_to_spaces() {
         let c = include_str!("../samples/mixedTabsAndSpaces2.cpp");
         let expected = include_str!("../samples/corrected/mixedTabsAndSpaces.cpp");
         let cleaned = space_tabs_conversion(c, TabStrategy::Untabify);
-        assert!(cleaned.eq(expected));
+        assert_eq!(cleaned, expected);
     }
     #[test]
     fn test_file_with_empty_line() {
         let c = include_str!("../samples/simpleWithEmptyLine.cpp");
         let expected = include_str!("../samples/corrected/simpleWithEmptyLine.cpp");
         let cleaned = space_tabs_conversion(c, TabStrategy::Untabify);
-        assert!(cleaned.eq(expected));
+        assert_eq!(cleaned, expected);
     }
     #[test]
     fn test_no_change_on_empty_string() {
