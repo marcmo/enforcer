@@ -7,6 +7,7 @@ use std::io::prelude::*;
 use rustc_serialize::Decodable;
 use glob::Pattern;
 use toml;
+use clean;
 
 pub const HAS_TABS: u8               = 1 << 0;
 pub const TRAILING_SPACES: u8        = 1 << 1;
@@ -30,20 +31,6 @@ fn check_content<'a>(input: &'a str, filename: &str) -> io::Result<u8> {
         }
     }
     Ok(result)
-}
-
-pub fn clean_string(input: &str) -> String {
-    let v: Vec<&str> = input
-        .lines_any()
-        .map(|line| line.trim_right())
-        .collect();
-
-    if input.ends_with("\n") {
-        v.join("\n") + "\n"
-    }
-    else {
-        v.join("\n")
-    }
 }
 
 pub fn is_dir(path: &Path) -> bool {
@@ -92,7 +79,8 @@ pub fn check_path(path: &Path, clean: bool) -> io::Result<u8> {
         println!("TRAILING_SPACES:[{}]", path.display());
         if clean {
             println!("cleaning trailing whitespaces");
-            let res_string = clean_string(&buffer);
+            let no_whitespaces_string = clean::remove_trailing_whitespaces(&buffer);
+            let res_string = clean::space_tabs_conversion(no_whitespaces_string, clean::TabStrategy::Untabify);
             let mut file = try!(File::create(path));
             try!(file.write_all(res_string.as_bytes()));
         }
@@ -145,7 +133,6 @@ pub fn read_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
 
 #[cfg(test)]
 mod tests {
-    use super::clean_string;
     use super::read_config;
     use super::is_unwanted;
     use super::s;
@@ -154,19 +141,6 @@ mod tests {
     use std::ffi::OsStr;
     use std::path::Component::Normal;
 
-    #[test]
-    fn test_clean_does_not_remove_trailing_newline() {
-        let content = "1\n2\n3\n4\n5\n";
-        let cleaned = clean_string(content);
-        assert!(cleaned.eq(content));
-    }
-    #[test]
-    fn test_clean_trailing_whitespace() {
-        let content = "1 \n2";
-        let cleaned = clean_string(content);
-        println!("{:?}", cleaned);
-        assert!(cleaned.eq("1\n2"));
-    }
     #[test]
     fn test_load_simple_config() {
         let c = include_str!("../samples/.enforcer");
