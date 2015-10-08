@@ -14,3 +14,9 @@ int gcd(int a, int b)
 		a %= b;
 	}
 }
+
+asm UINT32 read_MSR(void)
+{
+  mfmsr r3
+  wrteei 0
+}
