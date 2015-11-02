@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/marcmo/enforcer.svg?branch=master)](http://travis-ci.org/marcmo/enforcer)
+[![Build Status](https://travis-ci.org/marcmo/enforcer.svg?branch=master)](http://travis-ci.org/marcmo/enforcer) [![Appveyor Build status](https://ci.appveyor.com/api/projects/status/vv4t6mfr25p61a6p?svg=true)](https://ci.appveyor.com/project/marcmo/enforcer)
 
 enforcer
 ========
