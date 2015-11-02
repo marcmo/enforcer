@@ -17,7 +17,7 @@ fn check_content<'a>(input: &'a str, filename: &str) -> io::Result<u8> {
     debug!("check content of {}", filename);
     let mut result = 0;
     let mut i: u32 = 0;
-    for line in input.lines_any() {
+    for line in input.lines() {
         i += 1;
         if line.ends_with(' ') {
             result |= TRAILING_SPACES;

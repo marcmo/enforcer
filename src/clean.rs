@@ -42,7 +42,7 @@ pub fn space_tabs_conversion<S>(content: S, s: TabStrategy) -> String where S: I
 pub fn remove_trailing_whitespaces<S>(input: S) -> String where S: Into<String>{
     let s = input.into();
     let v: Vec<&str> = s
-        .lines_any()
+        .lines()
         .map(|line| line.trim_right())
         .collect();
 
