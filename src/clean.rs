@@ -10,7 +10,7 @@ fn to_spaces(line: Chars, width: u8) -> String {
         match c {
             '\t' => {
                 let spaces = width - column;
-                for _ in (0..spaces) {result.push(' ')};
+                for _ in 0..spaces {result.push(' ')};
                 column = 0;
             },
             _ => {

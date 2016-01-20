@@ -93,7 +93,16 @@ fn main() {
             if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
         }
     }
-    println!("checked {} files! [HAD_TABS:{}][ILLEGAL_CHARS:{}][TRAILING_SPACES:{}]",
-             checked_files, had_tabs, had_illegals, had_trailing_ws);
+    if had_tabs + had_illegals + had_trailing_ws > 0
+    {
+        println!("checked {} files (enforcer_errors!) [HAD_TABS:{}][ILLEGAL_CHARS:{}][TRAILING_SPACES:{}]",
+                checked_files, had_tabs, had_illegals, had_trailing_ws);
+        std::process::exit(1);
+    }
+    else
+    {
+        println!("checked {} files (enforcer_clean!)", checked_files);
+        std::process::exit(0);
+    }
 }
 
