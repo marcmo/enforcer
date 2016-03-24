@@ -65,7 +65,7 @@ pub fn check_path(path: &Path, clean: bool, verbose: bool) -> io::Result<u8> {
         match e.kind() {
             ErrorKind::InvalidData => {
                 check = check | HAS_ILLEGAL_CHARACTERS;
-                let _ = report_offending_line(path);
+                if verbose {let _ = report_offending_line(path);}
                 return Ok(check)
             },
             _ => return Err(e),
