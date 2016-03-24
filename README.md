@@ -10,15 +10,17 @@ check source code for certain metrics (intended as a pre-commit hook)
     enforcer for code rules
 
     Usage:
-      enforcer [-g GLOB...] [-c|--clean]
+      enforcer [-g GLOB...] [-c|--clean] [-n|--count]
       enforcer (-h | --help)
       enforcer (-v | --version)
+      enforcer (-s | --status)
 
     Options:
       -g GLOB       use these glob patterns (e.g. \"**/*.h\")
       -h --help     Show this screen.
       -v --version  Show version.
-      --count       only count found entries
+      -s --status   Show configuration status.
+      -n --count    only count found entries
       -c --clean    clean up trailing whitespaces
 
 ## Example config file (name .enforcer)
