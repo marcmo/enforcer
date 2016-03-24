@@ -15,7 +15,7 @@ const USAGE: &'static str = "
 enforcer for code rules
 
 Usage:
-  enforcer [-g GLOB...] [-c|--clean] [--count]
+  enforcer [-g GLOB...] [-c|--clean] [-n|--count]
   enforcer (-h | --help)
   enforcer (-v | --version)
   enforcer (-s | --status)
@@ -25,7 +25,7 @@ Options:
   -h --help     Show this screen.
   -v --version  Show version.
   -s --status   Show configuration status.
-  --count       only count found entries
+  -n --count    only count found entries
   -c --clean    clean up trailing whitespaces
 ";
 #[derive(Debug, RustcDecodable)]
@@ -100,6 +100,9 @@ fn main() {
             if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
             if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
         }
+    }
+    if args.flag_count {
+        println!("enforcer-error-count: {}", had_tabs + had_illegals + had_trailing_ws);
     }
     if had_tabs + had_illegals + had_trailing_ws > 0
     {
