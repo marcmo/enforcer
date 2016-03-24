@@ -19,7 +19,7 @@ fn check_content<'a>(input: &'a str, filename: &str, verbose: bool) -> io::Resul
     let mut i: u32 = 0;
     for line in input.lines() {
         i += 1;
-        if line.ends_with(' ') {
+        if line.ends_with(' ') || line.ends_with('\t') {
             result |= TRAILING_SPACES;
         }
         if line.contains("\t") {
@@ -144,6 +144,10 @@ pub fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
 
 #[cfg(test)]
 mod tests {
+    use super::check_content;
+    use super::TRAILING_SPACES;
+    use super::HAS_TABS;
+    use super::HAS_ILLEGAL_CHARACTERS;
     use super::parse_config;
     use super::is_unwanted;
     use super::s;
@@ -151,7 +155,36 @@ mod tests {
     use super::EnforcerCfg;
     use std::ffi::OsStr;
     use std::path::Component::Normal;
-
+    #[test]
+    fn test_check_good_content() {
+        let content = "1\n";
+        let res = check_content(content, "foo.h", false);
+        assert!(res.is_ok());
+        let check = res.unwrap();
+        assert!((check & TRAILING_SPACES) == 0);
+        assert!((check & HAS_TABS) == 0);
+        assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
+    }
+    #[test]
+    fn test_check_content_trailing_ws() {
+        let content = "1 \n";
+        let res = check_content(content, "foo.h", false);
+        assert!(res.is_ok());
+        let check = res.unwrap();
+        assert!((check & TRAILING_SPACES) > 0);
+        assert!((check & HAS_TABS) == 0);
+        assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
+    }
+    #[test]
+    fn test_check_content_trailing_tabs() {
+        let content = "1\t\n";
+        let res = check_content(content, "foo.h", false);
+        assert!(res.is_ok());
+        let check = res.unwrap();
+        assert!((check & TRAILING_SPACES) > 0);
+        assert!((check & HAS_TABS) > 0);
+        assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
+    }
     #[test]
     fn test_load_simple_config() {
         let c = include_str!("../samples/.enforcer");
