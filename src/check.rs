@@ -13,7 +13,7 @@ pub const HAS_TABS: u8               = 1 << 0;
 pub const TRAILING_SPACES: u8        = 1 << 1;
 pub const HAS_ILLEGAL_CHARACTERS: u8 = 1 << 2;
 
-fn check_content<'a>(input: &'a str, filename: &str) -> io::Result<u8> {
+fn check_content<'a>(input: &'a str, filename: &str, verbose: bool) -> io::Result<u8> {
     debug!("check content of {}", filename);
     let mut result = 0;
     let mut i: u32 = 0;
@@ -26,7 +26,7 @@ fn check_content<'a>(input: &'a str, filename: &str) -> io::Result<u8> {
             result |= HAS_TABS;
         }
         if line.as_bytes().iter().any(|x| *x > 127) {
-            println!("non ASCII line [{}]: {} [{}]", i, line, filename);
+            if verbose {println!("non ASCII line [{}]: {} [{}]", i, line, filename)}
             result |= HAS_ILLEGAL_CHARACTERS;
         }
     }
@@ -55,7 +55,7 @@ fn report_offending_line(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn check_path(path: &Path, clean: bool) -> io::Result<u8> {
+pub fn check_path(path: &Path, clean: bool, verbose: bool) -> io::Result<u8> {
     use std::io::ErrorKind;
 
     let mut f = try!(File::open(path));
@@ -72,20 +72,20 @@ pub fn check_path(path: &Path, clean: bool) -> io::Result<u8> {
         }
     }
     // only check content if we could read the file
-    if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"))); }
+    if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"), verbose)); }
     if clean {
-        let no_spaces = if (check & HAS_TABS) > 0 {
-            println!("HAS_TABS:[{}] -> converting to spaces", path.display());
-            clean::space_tabs_conversion(buffer, clean::TabStrategy::Untabify)
+        let no_trailing_ws = if (check & TRAILING_SPACES) > 0 {
+            if verbose {println!("TRAILING_SPACES:[{}] -> removing", path.display())}
+            clean::remove_trailing_whitespaces(buffer)
         } else { buffer };
-        let res_string = if (check & TRAILING_SPACES) > 0 {
-            println!("TRAILING_SPACES:[{}] -> removing", path.display());
-            clean::remove_trailing_whitespaces(no_spaces)
-        } else { no_spaces };
+        let res_string = if (check & HAS_TABS) > 0 {
+            if verbose {println!("HAS_TABS:[{}] -> converting to spaces", path.display())}
+            clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
+        } else { no_trailing_ws };
         let mut file = try!(File::create(path));
         try!(file.write_all(res_string.as_bytes()));
     }
-    else /* report only */ { report(check, &path) }
+    else /* report only */ { if verbose {report(check, &path)} }
     Ok(check)
 }
 
@@ -125,9 +125,9 @@ pub fn is_unwanted(comp: std::path::Component, to_ignore: &Vec<String>) -> bool 
             .matches(path_elem))
 }
 
-pub fn read_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
+pub fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
     use std::io::{Error, ErrorKind};
-    debug!("read_config");
+    debug!("parse_config");
     let mut parser = toml::Parser::new(input);
     fn default_err() -> Error {
         Error::new(ErrorKind::InvalidData, "could not parse the config")
@@ -144,7 +144,7 @@ pub fn read_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
 
 #[cfg(test)]
 mod tests {
-    use super::read_config;
+    use super::parse_config;
     use super::is_unwanted;
     use super::s;
     use glob::Pattern;
@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn test_load_simple_config() {
         let c = include_str!("../samples/.enforcer");
-        let cfg = read_config(c).unwrap();
+        let cfg = parse_config(c).unwrap();
         assert_eq!(cfg.ignore.len(), 2);
         let expected = EnforcerCfg {
             ignore: vec![s(".git"), s(".repo")],
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn test_load_broken_config() {
         let c = include_str!("../samples/.enforcer_broken");
-        let cfg = read_config(c).unwrap();
+        let cfg = parse_config(c).unwrap();
         let expected = EnforcerCfg {
             ignore: vec![s(".git"), s(".repo")],
             globs : vec![s("**/*.c"), s("**/*.cpp"), s("**/*.h")],

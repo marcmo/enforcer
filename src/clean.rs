@@ -54,7 +54,6 @@ pub fn remove_trailing_whitespaces<S>(input: S) -> String where S: Into<String>{
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::remove_trailing_whitespaces;
@@ -71,6 +70,13 @@ mod tests {
     #[test]
     fn test_clean_trailing_whitespace() {
         let content = "1 \n2";
+        let cleaned = remove_trailing_whitespaces(content);
+        println!("{:?}", cleaned);
+        assert!(cleaned.eq("1\n2"));
+    }
+    #[test]
+    fn test_clean_trailing_tabs() {
+        let content = "1\t\n2";
         let cleaned = remove_trailing_whitespaces(content);
         println!("{:?}", cleaned);
         assert!(cleaned.eq("1\n2"));
@@ -94,6 +100,16 @@ mod tests {
         let cleaned = space_tabs_conversion(c, TabStrategy::Untabify);
         assert_eq!(cleaned, expected);
     }
+    #[test]
+    fn test_file_with_tabs_and_trailing_whitespaces() {
+        let c = include_str!("../samples/withTabsAndTrailingWhitespaces.cpp");
+        let expected = include_str!("../samples/corrected/withTabsAndTrailingWhitespaces.cpp");
+        let cleaned = remove_trailing_whitespaces(space_tabs_conversion(c, TabStrategy::Untabify));
+        assert_eq!(cleaned, expected);
+        let cleaned2 = space_tabs_conversion(remove_trailing_whitespaces(c), TabStrategy::Untabify);
+        assert_eq!(cleaned2, expected);
+    }
+
     #[test]
     fn test_file_with_tabs_and_spaces_to_spaces() {
         let c = include_str!("../samples/mixedTabsAndSpaces2.cpp");

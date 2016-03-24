@@ -15,14 +15,16 @@ const USAGE: &'static str = "
 enforcer for code rules
 
 Usage:
-  enforcer [-g GLOB...] [-c|--clean]
+  enforcer [-g GLOB...] [-c|--clean] [--count]
   enforcer (-h | --help)
   enforcer (-v | --version)
+  enforcer (-s | --status)
 
 Options:
   -g GLOB       use these glob patterns (e.g. \"**/*.h\")
   -h --help     Show this screen.
   -v --version  Show version.
+  -s --status   Show configuration status.
   --count       only count found entries
   -c --clean    clean up trailing whitespaces
 ";
@@ -31,6 +33,8 @@ struct Args {
     flag_clean: bool,
     flag_g: Vec<String>,
     flag_version: bool,
+    flag_status: bool,
+    flag_count: bool,
 }
 
 #[allow(dead_code)]
@@ -43,11 +47,10 @@ fn main() {
             let mut cfg_file = try!(File::open(".enforcer"));
             let mut buffer = String::new();
             try!(cfg_file.read_to_string(&mut buffer));
-            check::read_config(&buffer[..])
+            check::parse_config(&buffer[..])
         }
-        let enforcer_cfg = read_enforcer_config()
-            .unwrap_or(check::default_cfg());
-        enforcer_cfg
+        read_enforcer_config()
+            .unwrap_or(check::default_cfg())
     };
 
     let args: Args = Docopt::new(USAGE)
@@ -56,8 +59,13 @@ fn main() {
 
     if args.flag_version {
         println!("  Version: {}", VERSION);
+        std::process::exit(0);
     }
     let enforcer_cfg = get_cfg();
+    if args.flag_status {
+        println!("  using this config: {:?}", enforcer_cfg);
+        std::process::exit(0);
+    }
     let cfg_ignores = enforcer_cfg.ignore;
     let cfg_globs = enforcer_cfg.globs;
     let pats = if args.flag_g.len() > 0 {
@@ -85,7 +93,7 @@ fn main() {
     for path in paths {
         if !check::is_dir(path.as_path()) {
             checked_files += 1;
-            let r = check::check_path(path.as_path(), args.flag_clean)
+            let r = check::check_path(path.as_path(), args.flag_clean, !args.flag_count)
                 .ok()
                 .expect(&format!("check_path for {:?} should work", path));
             if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
