@@ -1,6 +1,6 @@
 [package]
 name = "enforcer"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["Oliver Mueller <oliver.mueller@gmail.com>"]
 
 [dependencies]

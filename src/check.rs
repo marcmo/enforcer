@@ -13,7 +13,7 @@ pub const HAS_TABS: u8               = 1 << 0;
 pub const TRAILING_SPACES: u8        = 1 << 1;
 pub const HAS_ILLEGAL_CHARACTERS: u8 = 1 << 2;
 
-fn check_content<'a>(input: &'a str, filename: &str, verbose: bool) -> io::Result<u8> {
+fn check_content<'a>(input: &'a str, filename: &str, verbose: bool, s: clean::TabStrategy) -> io::Result<u8> {
     debug!("check content of {}", filename);
     let mut result = 0;
     let mut i: u32 = 0;
@@ -22,7 +22,7 @@ fn check_content<'a>(input: &'a str, filename: &str, verbose: bool) -> io::Resul
         if line.ends_with(' ') || line.ends_with('\t') {
             result |= TRAILING_SPACES;
         }
-        if line.contains("\t") {
+        if s == clean::TabStrategy::Untabify && line.contains("\t") {
             result |= HAS_TABS;
         }
         if line.as_bytes().iter().any(|x| *x > 127) {
@@ -55,7 +55,7 @@ fn report_offending_line(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn check_path(path: &Path, clean: bool, verbose: bool) -> io::Result<u8> {
+pub fn check_path(path: &Path, clean: bool, verbose: bool, s: clean::TabStrategy) -> io::Result<u8> {
     use std::io::ErrorKind;
 
     let mut f = try!(File::open(path));
@@ -72,7 +72,7 @@ pub fn check_path(path: &Path, clean: bool, verbose: bool) -> io::Result<u8> {
         }
     }
     // only check content if we could read the file
-    if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"), verbose)); }
+    if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"), verbose, s)); }
     if clean {
         let no_trailing_ws = if (check & TRAILING_SPACES) > 0 {
             if verbose {println!("TRAILING_SPACES:[{}] -> removing", path.display())}
@@ -153,12 +153,14 @@ mod tests {
     use super::s;
     use glob::Pattern;
     use super::EnforcerCfg;
+    use clean::TabStrategy::Untabify;
+    use clean::TabStrategy::Tabify;
     use std::ffi::OsStr;
     use std::path::Component::Normal;
     #[test]
     fn test_check_good_content() {
-        let content = "1\n";
-        let res = check_content(content, "foo.h", false);
+        let content = " 1\n";
+        let res = check_content(content, "foo.h", false, Untabify);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) == 0);
@@ -166,9 +168,29 @@ mod tests {
         assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
     }
     #[test]
+    fn test_check_good_content_with_tabs() {
+        let content = "\t1\n";
+        let res = check_content(content, "foo.h", false, Tabify);
+        assert!(res.is_ok());
+        let check = res.unwrap();
+        assert!((check & TRAILING_SPACES) == 0);
+        assert!((check & HAS_TABS) == 0);
+        assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
+    }
+    #[test]
+    fn test_check_bad_content_with_tabs() {
+        let content = "\t1\n";
+        let res = check_content(content, "foo.h", false, Untabify);
+        assert!(res.is_ok());
+        let check = res.unwrap();
+        assert!((check & TRAILING_SPACES) == 0);
+        assert!((check & HAS_TABS) == 1);
+        assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
+    }
+    #[test]
     fn test_check_content_trailing_ws() {
         let content = "1 \n";
-        let res = check_content(content, "foo.h", false);
+        let res = check_content(content, "foo.h", false, Untabify);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) > 0);
@@ -178,7 +200,7 @@ mod tests {
     #[test]
     fn test_check_content_trailing_tabs() {
         let content = "1\t\n";
-        let res = check_content(content, "foo.h", false);
+        let res = check_content(content, "foo.h", false, Untabify);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) > 0);

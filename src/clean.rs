@@ -1,6 +1,6 @@
 use std::str::Chars;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum TabStrategy { Untabify, Tabify }
 
 fn to_spaces(line: Chars, width: u8) -> String {

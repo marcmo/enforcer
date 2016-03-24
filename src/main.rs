@@ -6,6 +6,7 @@ extern crate glob;
 extern crate env_logger;
 
 use enforcer::check;
+use enforcer::clean;
 use std::fs::File;
 use std::io::Read;
 use docopt::Docopt;
@@ -15,7 +16,7 @@ const USAGE: &'static str = "
 enforcer for code rules
 
 Usage:
-  enforcer [-g GLOB...] [-c|--clean] [-n|--count]
+  enforcer [-g GLOB...] [-c|--clean] [-n|--count] [-t|--tabs]
   enforcer (-h | --help)
   enforcer (-v | --version)
   enforcer (-s | --status)
@@ -27,6 +28,7 @@ Options:
   -s --status   Show configuration status.
   -n --count    only count found entries
   -c --clean    clean up trailing whitespaces
+  -t --tabs     leave tabs alone (without that tabs are considered wrong)
 ";
 #[derive(Debug, RustcDecodable)]
 struct Args {
@@ -35,6 +37,7 @@ struct Args {
     flag_version: bool,
     flag_status: bool,
     flag_count: bool,
+    flag_tabs: bool,
 }
 
 #[allow(dead_code)]
@@ -93,7 +96,10 @@ fn main() {
     for path in paths {
         if !check::is_dir(path.as_path()) {
             checked_files += 1;
-            let r = check::check_path(path.as_path(), args.flag_clean, !args.flag_count)
+            let r = check::check_path(path.as_path(),
+                                    args.flag_clean,
+                                    !args.flag_count,
+                                    if args.flag_tabs { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
                 .ok()
                 .expect(&format!("check_path for {:?} should work", path));
             if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
@@ -106,8 +112,10 @@ fn main() {
     }
     if had_tabs + had_illegals + had_trailing_ws > 0
     {
-        println!("checked {} files (enforcer_errors!) [HAD_TABS:{}][ILLEGAL_CHARS:{}][TRAILING_SPACES:{}]",
-                checked_files, had_tabs, had_illegals, had_trailing_ws);
+        println!("checked {} files (enforcer_errors!)", checked_files);
+        if had_tabs > 0 {println!("   [with TABS:{}]", had_tabs)}
+        if had_illegals > 0 {println!("   [with ILLEGAL CHARS:{}]", had_illegals)}
+        if had_trailing_ws > 0 {println!("   [with TRAILING SPACES:{}]", had_trailing_ws)}
         std::process::exit(1);
     }
     else
