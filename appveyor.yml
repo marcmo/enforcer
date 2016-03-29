@@ -5,14 +5,10 @@ install:
   - rustc -V
   - cargo -V
 
-build:
-  - cmd: cargo build --release
-
-after_build:
-  - cmd: 7z a enforcer.zip target/release/enforcer
 
 test_script:
-  - cargo build
+  - cargo build --release
+  - cmd: 7z a enforcer.zip target/release/enforcer
   - cargo test --verbose
 
 artifacts:
