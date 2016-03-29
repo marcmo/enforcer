@@ -1,6 +1,6 @@
 install:
-  - ps: Start-FileDownload 'https://static.rust-lang.org/dist/rust-1.4.0-i686-pc-windows-gnu.exe'
-  - rust-1.4.0-i686-pc-windows-gnu.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
+  - ps: Start-FileDownload 'https://static.rust-lang.org/dist/rust-beta-i686-pc-windows-gnu.exe'
+  - rust-beta-i686-pc-windows-gnu.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
   - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
   - rustc -V
   - cargo -V
@@ -9,7 +9,7 @@ build: none
 
 test_script:
   - cargo build --release
-  - cmd: 7z a enforcer.zip enforcer
+  - cmd: 7z a enforcer.zip target/release/enforcer.exe
   - cargo test --verbose
 
 artifacts:
