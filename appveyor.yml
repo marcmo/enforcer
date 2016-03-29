@@ -5,6 +5,7 @@ install:
   - rustc -V
   - cargo -V
 
+build: none
 
 test_script:
   - cargo build --release
