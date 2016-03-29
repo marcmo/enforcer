@@ -6,10 +6,10 @@ install:
   - cargo -V
 
 build:
-  - cargo build --release
+  - cmd: cargo build --release
 
 after_build:
-  - 7z a enforcer.zip target/release/enforcer
+  - cmd: 7z a enforcer.zip target/release/enforcer
 
 test_script:
   - cargo build
