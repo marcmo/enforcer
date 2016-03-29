@@ -9,7 +9,7 @@ build: none
 
 test_script:
   - cargo build --release
-  - cmd: 7z a enforcer.zip target/release/enforcer
+  - cmd: 7z a enforcer.zip enforcer
   - cargo test --verbose
 
 artifacts:
