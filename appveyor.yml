@@ -5,8 +5,16 @@ install:
   - rustc -V
   - cargo -V
 
-build: false
+build:
+  - cargo build --release
+
+after_build:
+  - 7z a enforcer.zip target/release/enforcer
 
 test_script:
   - cargo build
   - cargo test --verbose
+
+artifacts:
+  - path: enforcer.zip
+    name: Enforcer
