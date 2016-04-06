@@ -1,14 +1,21 @@
 extern crate enforcer;
+extern crate memmap;
 extern crate rustc_serialize;
 extern crate docopt;
 extern crate glob;
+extern crate scoped_pool;
 #[macro_use] extern crate log;
 extern crate env_logger;
 
+use std::sync::mpsc::{sync_channel, SyncSender};
+use std::thread;
+use self::memmap::{Mmap, Protection};
 use enforcer::check;
 use enforcer::clean;
 use std::fs::File;
+use std::io;
 use std::io::Read;
+use scoped_pool::Pool;
 use docopt::Docopt;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -92,20 +99,56 @@ fn main() {
     let mut had_tabs: u32 = 0;
     let mut had_trailing_ws: u32 = 0;
     let mut had_illegals: u32 = 0;
+    let clean_f = args.flag_clean;
+    let count_f = args.flag_count;
+    let tabs_f = args.flag_tabs;
     let paths = find_matches();
-    for path in paths {
-        if !check::is_dir(path.as_path()) {
-            checked_files += 1;
-            let r = check::check_path(path.as_path(),
-                                    args.flag_clean,
-                                    !args.flag_count,
-                                    if args.flag_tabs { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
-                .ok()
-                .expect(&format!("check_path for {:?} should work", path));
-            if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
-            if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
-            if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
-        }
+
+    let (w_chan, r_chan) = sync_channel(4);
+    thread::spawn(move || {
+        // let (w_chan, r_chan) = sync_channel::<io::Result<u8>>(4);
+        let pool = Pool::new(4);
+
+        println!("starting....");
+        pool.scoped(|scope| {
+
+            for path in paths {
+                if !check::is_dir(path.as_path()) {
+                    let ch = w_chan.clone();
+                    scope.execute(move || {
+                        // println!("in scope execute for {:?}....", path);
+                        // if let Ok(map) = Mmap::open_path(path, Protection::Read) {
+                        //     let buf = unsafe { map.as_slice() };
+                        //     let res = search::search(rx, &opts, path, buf);
+                        //     ch.send(res).unwrap();
+                        // }
+                        let r = check::check_path(path.as_path(),
+                                                clean_f,
+                                                !count_f,
+                                                if tabs_f { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
+                            .ok()
+                            .expect(&format!("check_path for {:?} should work", path));
+                        // println!("sending result for {:?}....", path);
+                        ch.send(r).unwrap();
+                    });
+                    // let r = check::check_path(path.as_path(),
+                    //                         args.flag_clean,
+                    //                         !args.flag_count,
+                    //                         if args.flag_tabs { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
+                    //     .ok()
+                    //     .expect(&format!("check_path for {:?} should work", path));
+                    // if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
+                    // if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
+                    // if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
+                }
+            }
+        });
+    });
+    while let Ok(r) = r_chan.recv() {
+        if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
+        if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
+        if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
+        checked_files += 1;
     }
     if args.flag_count {
         println!("enforcer-error-count: {}", had_tabs + had_illegals + had_trailing_ws);

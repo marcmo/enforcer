@@ -58,14 +58,11 @@ fn report_offending_line(path: &Path) -> std::io::Result<()> {
 }
 
 pub fn check_path(path: &Path, clean: bool, verbose: bool, s: clean::TabStrategy) -> io::Result<u8> {
-    use std::io::ErrorKind;
-
-    let mut f = try!(File::open(path));
     let mut check = 0;
     if let Ok(map) = Mmap::open_path(path, Protection::Read) {
         let buf = unsafe { map.as_slice() };
         match std::str::from_utf8(buf) {
-            Err(e) => {
+            Err(_) => {
                 check = check | HAS_ILLEGAL_CHARACTERS;
                 if verbose {let _ = report_offending_line(path);}
                 return Ok(check)
