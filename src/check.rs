@@ -1,3 +1,4 @@
+extern crate memmap;
 use std;
 use std::io;
 use std::path::Path;
@@ -8,6 +9,7 @@ use rustc_serialize::Decodable;
 use glob::Pattern;
 use toml;
 use clean;
+use self::memmap::{Mmap, Protection};
 
 pub const HAS_TABS: u8               = 1 << 0;
 pub const TRAILING_SPACES: u8        = 1 << 1;
@@ -59,33 +61,34 @@ pub fn check_path(path: &Path, clean: bool, verbose: bool, s: clean::TabStrategy
     use std::io::ErrorKind;
 
     let mut f = try!(File::open(path));
-    let mut buffer = String::new();
     let mut check = 0;
-    if let Err(e) = f.read_to_string(&mut buffer) {
-        match e.kind() {
-            ErrorKind::InvalidData => {
+    if let Ok(map) = Mmap::open_path(path, Protection::Read) {
+        let buf = unsafe { map.as_slice() };
+        match std::str::from_utf8(buf) {
+            Err(e) => {
                 check = check | HAS_ILLEGAL_CHARACTERS;
                 if verbose {let _ = report_offending_line(path);}
                 return Ok(check)
             },
-            _ => return Err(e),
-        }
-    }
+            Ok(buffer) => {
+                if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"), verbose, s)); }
+                if clean {
+                    let no_trailing_ws = if (check & TRAILING_SPACES) > 0 {
+                        if verbose {println!("TRAILING_SPACES:[{}] -> removing", path.display())}
+                        clean::remove_trailing_whitespaces(buffer)
+                    } else { buffer.to_string() };
+                    let res_string = if (check & HAS_TABS) > 0 {
+                        if verbose {println!("HAS_TABS:[{}] -> converting to spaces", path.display())}
+                        clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
+                    } else { no_trailing_ws };
+                    let mut file = try!(File::create(path));
+                    try!(file.write_all(res_string.as_bytes()));
+                }
+                else /* report only */ { if verbose {report(check, &path)} }
+            },
+        };
+    };
     // only check content if we could read the file
-    if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"), verbose, s)); }
-    if clean {
-        let no_trailing_ws = if (check & TRAILING_SPACES) > 0 {
-            if verbose {println!("TRAILING_SPACES:[{}] -> removing", path.display())}
-            clean::remove_trailing_whitespaces(buffer)
-        } else { buffer };
-        let res_string = if (check & HAS_TABS) > 0 {
-            if verbose {println!("HAS_TABS:[{}] -> converting to spaces", path.display())}
-            clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
-        } else { no_trailing_ws };
-        let mut file = try!(File::create(path));
-        try!(file.write_all(res_string.as_bytes()));
-    }
-    else /* report only */ { if verbose {report(check, &path)} }
     Ok(check)
 }
 
