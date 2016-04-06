@@ -5,11 +5,17 @@ extern crate glob;
 #[macro_use] extern crate log;
 extern crate env_logger;
 
+extern crate time;
+extern crate threadpool;
+use time::PreciseTime;
 use enforcer::check;
 use enforcer::clean;
 use std::fs::File;
 use std::io::Read;
 use docopt::Docopt;
+use threadpool::ThreadPool;
+use std::sync::mpsc::channel;
+use std::thread;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const USAGE: &'static str = "
@@ -89,33 +95,63 @@ fn main() {
         pats.iter().flat_map(|pat| relevant(&pat[..])).collect()
     };
     let mut checked_files: u32 = 0;
-    let mut had_tabs: u32 = 0;
-    let mut had_trailing_ws: u32 = 0;
-    let mut had_illegals: u32 = 0;
+    #[derive(Debug)]
+    struct FileResult {
+        had_tabs: u32,
+        had_trailing_ws: u32,
+        had_illegals: u32,
+    }
+
+    let start = PreciseTime::now();
+    // whatever you want to do
+    println!("before find_matches");
     let paths = find_matches();
+    let end = PreciseTime::now();
+    println!("{} after find_matches", start.to(end));
+
+    println!("before check_path ({} files)", paths.len());
+    let start2 = PreciseTime::now();
+
+    let cl = args.flag_clean;
+    let cnt = !args.flag_count;
+    let tabs = args.flag_tabs;
+    let pool = ThreadPool::new(10);
+    let (tx, rx) = channel();
     for path in paths {
         if !check::is_dir(path.as_path()) {
             checked_files += 1;
-            let r = check::check_path(path.as_path(),
-                                    args.flag_clean,
-                                    !args.flag_count,
-                                    if args.flag_tabs { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
-                .ok()
-                .expect(&format!("check_path for {:?} should work", path));
-            if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
-            if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
-            if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
+            let tx = tx.clone();
+            pool.execute(move|| {
+                println!("thread checking {:?}", path.as_path());
+                let r = check::check_path(path.as_path(), cl, cnt,
+                                        if tabs { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
+                    .ok()
+                    .expect(&format!("check_path for {:?} should work", path));
+                let mut res = FileResult{had_tabs: 0, had_illegals: 0, had_trailing_ws: 0};
+                if (r & check::HAS_TABS) > 0 { res.had_tabs += 1 }
+                if (r & check::TRAILING_SPACES) > 0 { res.had_trailing_ws += 1 }
+                if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { res.had_illegals += 1 }
+                println!("sending back: {:?}", res);
+                tx.send(res).unwrap();
+            });
+            println!("currently active threads: {}", pool.active_count());
         }
     }
+    let collector = thread::spawn(move || {
+        let (a,b,c) = rx.iter().take(10).fold((0,0,0), |(x,y,z), res| (x+res.had_tabs, y+res.had_illegals, z+res.had_trailing_ws));
+    });
+    // let thread_res = rx.recv().unwrap();
+    let end2 = PreciseTime::now();
+    println!("{} after check_path (res was: {:?})", start2.to(end2), (a,b,c));
     if args.flag_count {
-        println!("enforcer-error-count: {}", had_tabs + had_illegals + had_trailing_ws);
+        println!("enforcer-error-count: {}", a + b + c);
     }
-    if had_tabs + had_illegals + had_trailing_ws > 0
+    if a + b + c > 0
     {
         println!("checked {} files (enforcer_errors!)", checked_files);
-        if had_tabs > 0 {println!("   [with TABS:{}]", had_tabs)}
-        if had_illegals > 0 {println!("   [with ILLEGAL CHARS:{}]", had_illegals)}
-        if had_trailing_ws > 0 {println!("   [with TRAILING SPACES:{}]", had_trailing_ws)}
+        if a > 0 {println!("   [with TABS:{}]", a)}
+        if b > 0 {println!("   [with ILLEGAL CHARS:{}]", b)}
+        if c > 0 {println!("   [with TRAILING SPACES:{}]", c)}
         std::process::exit(1);
     }
     else
