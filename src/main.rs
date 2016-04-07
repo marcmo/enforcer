@@ -7,13 +7,13 @@ extern crate scoped_pool;
 #[macro_use] extern crate log;
 extern crate env_logger;
 
-use std::sync::mpsc::{sync_channel, SyncSender};
+use std::sync::mpsc::{sync_channel};
+use std::cmp::max;
 use std::thread;
-use self::memmap::{Mmap, Protection};
+use memmap::{Mmap, Protection};
 use enforcer::check;
 use enforcer::clean;
 use std::fs::File;
-use std::io;
 use std::io::Read;
 use scoped_pool::Pool;
 use docopt::Docopt;
@@ -89,7 +89,7 @@ fn main() {
         let relevant = |pat: &str| -> Vec<std::path::PathBuf> {
             glob(&*pat) // -> Result<Paths, PatternError>
             .ok()   // -> Option<Paths>
-            .expect(&format!("glob has problems with {}", pat)[..]) // -> Paths (Iterator ofer GlobResult)
+            .expect(&format!("glob has problems with {}", pat)[..]) // -> Paths (Iterator over GlobResult)
             .filter_map(Result::ok) // ignore unreadable paths -> Iterator over PathBuf
             .filter(|x| !x.components()
                         .any(|y| check::is_unwanted(y, &cfg_ignores))).collect()
@@ -103,14 +103,13 @@ fn main() {
     let clean_f = args.flag_clean;
     let count_f = args.flag_count;
     let tabs_f = args.flag_tabs;
-    let thread_count = args.flag_threads;
+    let thread_count = max(args.flag_threads, 1);
     println!("finding matches...");
     let paths = find_matches();
-    println!("found matches...");
+    println!("found {} matches...", paths.len());
 
     let (w_chan, r_chan) = sync_channel(thread_count);
     thread::spawn(move || {
-        // let (w_chan, r_chan) = sync_channel::<io::Result<u8>>(4);
         let pool = Pool::new(thread_count);
 
         println!("starting with {} threads....", thread_count);
@@ -120,30 +119,19 @@ fn main() {
                 if !check::is_dir(path.as_path()) {
                     let ch = w_chan.clone();
                     scope.execute(move || {
-                        // println!("in scope execute for {:?}....", path);
-                        // if let Ok(map) = Mmap::open_path(path, Protection::Read) {
-                        //     let buf = unsafe { map.as_slice() };
-                        //     let res = search::search(rx, &opts, path, buf);
-                        //     ch.send(res).unwrap();
-                        // }
-                        let r = check::check_path(path.as_path(),
-                                                clean_f,
-                                                !count_f,
-                                                if tabs_f { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
-                            .ok()
-                            .expect(&format!("check_path for {:?} should work", path));
-                        // println!("sending result for {:?}....", path);
-                        ch.send(r).unwrap();
+                        let p = path.clone();
+                        if let Ok(map) = Mmap::open_path(path, Protection::Read) {
+                            let buf = unsafe { map.as_slice() };
+                            let r = check::check_path(p.as_path(),
+                                                    buf,
+                                                    clean_f,
+                                                    !count_f,
+                                                    if tabs_f { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
+                                .ok()
+                                .expect(&format!("check_path for {:?} should work", p));
+                            ch.send(r).unwrap();
+                        }
                     });
-                    // let r = check::check_path(path.as_path(),
-                    //                         args.flag_clean,
-                    //                         !args.flag_count,
-                    //                         if args.flag_tabs { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
-                    //     .ok()
-                    //     .expect(&format!("check_path for {:?} should work", path));
-                    // if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
-                    // if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
-                    // if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
                 }
             }
         });
