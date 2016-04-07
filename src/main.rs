@@ -6,15 +6,19 @@ extern crate glob;
 extern crate scoped_pool;
 #[macro_use] extern crate log;
 extern crate env_logger;
+extern crate pbr;
 
-use std::sync::mpsc::{sync_channel};
+use pbr::ProgressBar;
+use std::sync::mpsc::{sync_channel,SyncSender};
 use std::cmp::max;
 use std::thread;
 use memmap::{Mmap, Protection};
 use enforcer::check;
 use enforcer::clean;
-use std::fs::File;
+use std::fs;
 use std::io::Read;
+use std::io::Write;
+use std::io::stdout;
 use scoped_pool::Pool;
 use docopt::Docopt;
 
@@ -56,7 +60,7 @@ fn main() {
 
     let get_cfg = || -> check::EnforcerCfg {
         fn read_enforcer_config() -> std::io::Result<check::EnforcerCfg> {
-            let mut cfg_file = try!(File::open(".enforcer"));
+            let mut cfg_file = try!(fs::File::open(".enforcer"));
             let mut buffer = String::new();
             try!(cfg_file.read_to_string(&mut buffer));
             check::parse_config(&buffer[..])
@@ -104,43 +108,65 @@ fn main() {
     let count_f = args.flag_count;
     let tabs_f = args.flag_tabs;
     let thread_count = max(args.flag_threads, 1);
-    println!("finding matches...");
+    print!("finding matches...\r");
+    stdout().flush().unwrap();
     let paths = find_matches();
-    println!("found {} matches...", paths.len());
+    let count: u64 = paths.len() as u64;
+    let mut pb = ProgressBar::new(count);
 
     let (w_chan, r_chan) = sync_channel(thread_count);
     thread::spawn(move || {
         let pool = Pool::new(thread_count);
 
-        println!("starting with {} threads....", thread_count);
+        print!("starting with {} threads....\r", thread_count);
+        stdout().flush().unwrap();
         pool.scoped(|scope| {
-
             for path in paths {
-                if !check::is_dir(path.as_path()) {
-                    let ch = w_chan.clone();
-                    scope.execute(move || {
+                let ch: SyncSender<u8> = w_chan.clone();
+                scope.execute(move || {
+                    if !check::is_dir(path.as_path()) {
                         let p = path.clone();
-                        if let Ok(map) = Mmap::open_path(path, Protection::Read) {
-                            let buf = unsafe { map.as_slice() };
-                            let r = check::check_path(p.as_path(),
-                                                    buf,
-                                                    clean_f,
-                                                    !count_f,
-                                                    if tabs_f { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
-                                .ok()
-                                .expect(&format!("check_path for {:?} should work", p));
-                            ch.send(r).unwrap();
+                        match Mmap::open_path(path, Protection::Read) {
+                            Ok(map) => {
+                                let buf = unsafe { map.as_slice() };
+                                let r = check::check_path(p.as_path(),
+                                                        buf,
+                                                        clean_f,
+                                                        !count_f,
+                                                        if tabs_f { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
+                                    .ok()
+                                    .expect(&format!("check_path for {:?} should work", p));
+                                ch.send(r).unwrap();
+                            }
+                            Err(e) => {
+                                let len = match fs::metadata(p.clone()) {
+                                   Ok(metadata)  => { metadata.len() }
+                                   Err(_) => {panic!("mmap read error: {}", e)}
+                                };
+                                if len == 0 {
+                                    ch.send(0).unwrap();
+                                } else {
+                                    panic!("unexpected result for {:?}", p);
+                                }
+                            }
                         }
-                    });
-                }
+                    }
+                });
             }
         });
     });
-    while let Ok(r) = r_chan.recv() {
-        if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
-        if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
-        if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
+    for _ in 0..count {
+    // while let Ok(r) = r_chan.recv() {
+        match r_chan.recv() {
+            Ok(r) => {
+                if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
+                if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
+                if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
+            }
+            Err(e) => { panic!("error: {}", e); }
+        }
         checked_files += 1;
+        pb.inc();
     }
     if args.flag_count {
         println!("enforcer-error-count: {}", had_tabs + had_illegals + had_trailing_ws);

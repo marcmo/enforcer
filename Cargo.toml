@@ -1,6 +1,6 @@
 [package]
 name = "enforcer"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Oliver Mueller <oliver.mueller@gmail.com>"]
 
 [dependencies]
@@ -12,3 +12,4 @@ env_logger = "0.3"
 toml = "0.1"
 memmap = "0.3"
 scoped-pool = "*"
+pbr = "0.1"
