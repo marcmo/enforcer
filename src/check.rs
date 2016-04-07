@@ -1,4 +1,3 @@
-extern crate memmap;
 use std;
 use std::io;
 use std::path::Path;
@@ -9,7 +8,6 @@ use rustc_serialize::Decodable;
 use glob::Pattern;
 use toml;
 use clean;
-use self::memmap::{Mmap, Protection};
 
 pub const HAS_TABS: u8               = 1 << 0;
 pub const TRAILING_SPACES: u8        = 1 << 1;
@@ -57,33 +55,30 @@ fn report_offending_line(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn check_path(path: &Path, clean: bool, verbose: bool, s: clean::TabStrategy) -> io::Result<u8> {
+pub fn check_path(path: &Path, buf: &[u8], clean: bool, verbose: bool, s: clean::TabStrategy) -> io::Result<u8> {
     let mut check = 0;
-    if let Ok(map) = Mmap::open_path(path, Protection::Read) {
-        let buf = unsafe { map.as_slice() };
-        match std::str::from_utf8(buf) {
-            Err(_) => {
-                check = check | HAS_ILLEGAL_CHARACTERS;
-                if verbose {let _ = report_offending_line(path);}
-                return Ok(check)
-            },
-            Ok(buffer) => {
-                if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"), verbose, s)); }
-                if clean {
-                    let no_trailing_ws = if (check & TRAILING_SPACES) > 0 {
-                        if verbose {println!("TRAILING_SPACES:[{}] -> removing", path.display())}
-                        clean::remove_trailing_whitespaces(buffer)
-                    } else { buffer.to_string() };
-                    let res_string = if (check & HAS_TABS) > 0 {
-                        if verbose {println!("HAS_TABS:[{}] -> converting to spaces", path.display())}
-                        clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
-                    } else { no_trailing_ws };
-                    let mut file = try!(File::create(path));
-                    try!(file.write_all(res_string.as_bytes()));
-                }
-                else /* report only */ { if verbose {report(check, &path)} }
-            },
-        };
+    match std::str::from_utf8(buf) {
+        Err(_) => {
+            check = check | HAS_ILLEGAL_CHARACTERS;
+            if verbose {let _ = report_offending_line(path);}
+            return Ok(check)
+        },
+        Ok(buffer) => {
+            if check == 0 { check = try!(check_content(&buffer, path.to_str().expect("not available"), verbose, s)); }
+            if clean {
+                let no_trailing_ws = if (check & TRAILING_SPACES) > 0 {
+                    if verbose {println!("TRAILING_SPACES:[{}] -> removing", path.display())}
+                    clean::remove_trailing_whitespaces(buffer)
+                } else { buffer.to_string() };
+                let res_string = if (check & HAS_TABS) > 0 {
+                    if verbose {println!("HAS_TABS:[{}] -> converting to spaces", path.display())}
+                    clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
+                } else { no_trailing_ws };
+                let mut file = try!(File::create(path));
+                try!(file.write_all(res_string.as_bytes()));
+            }
+            else /* report only */ { if verbose {report(check, &path)} }
+        },
     };
     // only check content if we could read the file
     Ok(check)
