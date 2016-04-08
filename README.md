@@ -5,6 +5,8 @@ enforcer
 
 check source code for certain metrics (intended as a pre-commit hook)
 
+[!Screenshot](https://github.com/marcmo/enforcer/blob/master/doc/enforcerv0.5.gif)
+
 ## Usage
 
     enforcer for code rules
@@ -46,7 +48,8 @@ Let's see how we performe on the linux kernel.
     linux-4.5 > enforcer -v
       Version: 0.5.0
     linux-4.5 > time enforcer -t -n
-    41100 / 41100 [==================================================] 100.00 % 8337.43/s  enforcer-error-count: 3655
+    41100 / 41100 [==================================================] 100.00 % 8337.43/s
+    enforcer-error-count: 3655
     checked 41100 files (enforcer_errors!)
       [with ILLEGAL CHARS:1083]
       [with TRAILING SPACES:2572]
