@@ -10,19 +10,20 @@ check source code for certain metrics (intended as a pre-commit hook)
     enforcer for code rules
 
     Usage:
-      enforcer [-g GLOB...] [-c|--clean] [-n|--count] [-t|--tabs]
+      enforcer [-g GLOB...] [-c|--clean] [-q|--quiet] [-t|--tabs] [-j <N>|--threads=<N>]
       enforcer (-h | --help)
       enforcer (-v | --version)
       enforcer (-s | --status)
 
     Options:
-      -g GLOB       use these glob patterns (e.g. "**/*.h")
-      -h --help     Show this screen.
-      -v --version  Show version.
-      -s --status   Show configuration status.
-      -n --count    only count found entries
-      -c --clean    clean up trailing whitespaces
-      -t --tabs     leave tabs alone (without that tabs are considered wrong)
+      -g GLOB           use these glob patterns (e.g. "**/*.h")
+      -h --help         Show this screen.
+      -v --version      Show version.
+      -s --status       Show configuration status.
+      -q --quiet        only count found entries
+      -c --clean        clean up trailing whitespaces
+      -t --tabs         leave tabs alone (without that tabs are considered wrong)
+      -j --threads=<N>  number of threads [default: 4]
 
 ## Example config file (name .enforcer)
 
@@ -43,35 +44,38 @@ Let's see how we performe on the linux kernel.
       52882
 
     linux-4.5 > enforcer -v
-      Version: 0.4.0
+      Version: 0.5.0
     linux-4.5 > time enforcer -t -n
-    enforcer-error-count: 3655
+    41100 / 41100 [==================================================] 100.00 % 8337.43/s  enforcer-error-count: 3655
     checked 41100 files (enforcer_errors!)
       [with ILLEGAL CHARS:1083]
       [with TRAILING SPACES:2572]
 
-    real	0m24.657s
-    user	0m3.011s
-    sys	0m4.225s
+    real	0m6.340s
+    user	0m3.755s
+    sys	0m3.779s
 
 Ok, let's at least remove the trailing whitespaces:
 
     linux-4.5 > time enforcer -t -c
-    TRAILING_SPACES:[arch/alpha/include/asm/agp.h] -> removing
     ...
-    TRAILING_SPACES:[usr/gen_init_cpio.c] -> removing
     checked 41100 files (enforcer_errors!)
       [with ILLEGAL CHARS:1083]
       [with TRAILING SPACES:2572]
 
-    real	1m0.873s
-    user	0m3.250s
-    sys	0m7.667s
+    real	0m5.255s
+    user	0m4.207s
+    sys	0m5.934s
 
 Now check again
 
-    linux-4.5 > enforcer -t -n
+    linux-4.5 > time enforcer -t -q
+    41100 / 41100 [==================================================] 100.00 % 18314.68/s
     enforcer-error-count: 1083
     checked 41100 files (enforcer_errors!)
       [with ILLEGAL CHARS:1083]
+
+    real	0m3.621s
+    user	0m3.758s
+    sys	0m2.411s
 

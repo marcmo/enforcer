@@ -27,7 +27,7 @@ const USAGE: &'static str = "
 enforcer for code rules
 
 Usage:
-  enforcer [-g GLOB...] [-c|--clean] [-n|--count] [-t|--tabs] [-j <N>|--threads=<N>]
+  enforcer [-g GLOB...] [-c|--clean] [-q|--quiet] [-t|--tabs] [-j <N>|--threads=<N>]
   enforcer (-h | --help)
   enforcer (-v | --version)
   enforcer (-s | --status)
@@ -37,7 +37,7 @@ Options:
   -h --help         Show this screen.
   -v --version      Show version.
   -s --status       Show configuration status.
-  -n --count        only count found entries
+  -q --quiet        only count found entries
   -c --clean        clean up trailing whitespaces
   -t --tabs         leave tabs alone (without that tabs are considered wrong)
   -j --threads=<N>  number of threads [default: 4]
@@ -48,7 +48,7 @@ struct Args {
     flag_g: Vec<String>,
     flag_version: bool,
     flag_status: bool,
-    flag_count: bool,
+    flag_quiet: bool,
     flag_tabs: bool,
     flag_threads: usize,
 }
@@ -105,10 +105,10 @@ fn main() {
     let mut had_trailing_ws: u32 = 0;
     let mut had_illegals: u32 = 0;
     let clean_f = args.flag_clean;
-    let count_f = args.flag_count;
+    let quiet_f = args.flag_quiet;
     let tabs_f = args.flag_tabs;
     let thread_count = max(args.flag_threads, 1);
-    print!("finding matches...\r");
+    if !quiet_f { print!("finding matches...\r") }
     stdout().flush().unwrap();
     let paths = find_matches();
     let count: u64 = paths.len() as u64;
@@ -132,7 +132,7 @@ fn main() {
                                 let r = check::check_path(p.as_path(),
                                                         buf,
                                                         clean_f,
-                                                        !count_f,
+                                                        !quiet_f,
                                                         if tabs_f { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
                                     .ok()
                                     .expect(&format!("check_path for {:?} should work", p));
@@ -166,9 +166,10 @@ fn main() {
             Err(e) => { panic!("error: {}", e); }
         }
         checked_files += 1;
-        pb.inc();
+        if quiet_f {pb.inc();}
     }
-    if args.flag_count {
+    if quiet_f {pb.finish();};
+    if args.flag_quiet {
         println!("enforcer-error-count: {}", had_tabs + had_illegals + had_trailing_ws);
     }
     if had_tabs + had_illegals + had_trailing_ws > 0
