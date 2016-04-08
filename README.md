@@ -5,7 +5,7 @@ enforcer
 
 check source code for certain metrics (intended as a pre-commit hook)
 
-[!Screenshot](https://github.com/marcmo/enforcer/blob/master/doc/enforcerv0.5.gif)
+![Screenshot](https://github.com/marcmo/enforcer/blob/master/doc/enforcerv0.5.gif)
 
 ## Usage
 
