@@ -1,2 +1,2 @@
 ignore = [".git", ".repo"]
-globs = ["**/*.c", "**/*.cpp", "**/*.h"]
+endings = [".c", ".cpp", ".h"]

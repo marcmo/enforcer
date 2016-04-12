@@ -2,17 +2,19 @@ extern crate enforcer;
 extern crate memmap;
 extern crate rustc_serialize;
 extern crate docopt;
-extern crate glob;
 extern crate scoped_pool;
 #[macro_use] extern crate log;
 extern crate env_logger;
 extern crate pbr;
+extern crate walkdir;
 
+use walkdir::{DirEntry, WalkDir, WalkDirIterator};
 use pbr::ProgressBar;
 use std::sync::mpsc::{sync_channel,SyncSender};
 use std::cmp::max;
 use std::thread;
 use memmap::{Mmap, Protection};
+use enforcer::config;
 use enforcer::check;
 use enforcer::clean;
 use std::fs;
@@ -27,13 +29,13 @@ const USAGE: &'static str = "
 enforcer for code rules
 
 Usage:
-  enforcer [-g GLOB...] [-c|--clean] [-q|--quiet] [-t|--tabs] [-j <N>|--threads=<N>]
+  enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] [-t|--tabs] [-j <N>|--threads=<N>]
   enforcer (-h | --help)
   enforcer (-v | --version)
   enforcer (-s | --status)
 
 Options:
-  -g GLOB           use these glob patterns (e.g. \"**/*.h\")
+  -g ENDINGS        use these file endings (e.g. \".h\")
   -h --help         Show this screen.
   -v --version      Show version.
   -s --status       Show configuration status.
@@ -55,18 +57,17 @@ struct Args {
 
 #[allow(dead_code)]
 fn main() {
-    use glob::glob;
     env_logger::init().unwrap();
 
-    let get_cfg = || -> check::EnforcerCfg {
-        fn read_enforcer_config() -> std::io::Result<check::EnforcerCfg> {
+    let get_cfg = || -> config::EnforcerCfg {
+        fn read_enforcer_config() -> std::io::Result<config::EnforcerCfg> {
             let mut cfg_file = try!(fs::File::open(".enforcer"));
             let mut buffer = String::new();
             try!(cfg_file.read_to_string(&mut buffer));
-            check::parse_config(&buffer[..])
+            config::parse_config(&buffer[..])
         }
         read_enforcer_config()
-            .unwrap_or(check::default_cfg())
+            .unwrap_or(config::default_cfg())
     };
 
     let args: Args = Docopt::new(USAGE)
@@ -81,24 +82,40 @@ fn main() {
         println!("  using this config: {:?}", enforcer_cfg);
         std::process::exit(0);
     }
-    let cfg_ignores = enforcer_cfg.ignore;
-    let cfg_globs = enforcer_cfg.globs;
-    let pats = if args.flag_g.len() > 0 {
+    let cfg_ignores: Vec<String> = enforcer_cfg.ignore;
+    let cfg_endings = enforcer_cfg.endings;
+    let file_endings = if args.flag_g.len() > 0 {
         args.flag_g
     } else {
-        cfg_globs
+        cfg_endings
     };
 
     let find_matches = || -> Vec<std::path::PathBuf> {
-        let relevant = |pat: &str| -> Vec<std::path::PathBuf> {
-            glob(&*pat) // -> Result<Paths, PatternError>
-            .ok()   // -> Option<Paths>
-            .expect(&format!("glob has problems with {}", pat)[..]) // -> Paths (Iterator over GlobResult)
-            .filter_map(Result::ok) // ignore unreadable paths -> Iterator over PathBuf
-            .filter(|x| !x.components()
-                        .any(|y| check::is_unwanted(y, &cfg_ignores))).collect()
+        let walker = WalkDir::new(".".to_owned()).into_iter();
+
+        let is_hidden = |entry: &DirEntry| -> bool {
+            entry.file_name()
+                .to_str()
+                .map(|s| {
+                    cfg_ignores.iter().any (|to_ignore| s.starts_with(to_ignore))
+                })
+                .unwrap_or(false)
         };
-        pats.iter().flat_map(|pat| relevant(&pat[..])).collect()
+        let it = walker.filter_entry(|e| !is_hidden(e))
+            .filter_map(|e| e.ok())
+            .into_iter();
+        let mut res = Vec::new();
+        for f in it {
+            if !f.file_type().is_file() {
+                continue;
+            }
+            if f.file_name().to_str().map(|f|{
+                file_endings.iter().any (|p| f.ends_with(p))
+            }).unwrap_or(false) {
+                res.push(f.path().to_owned());
+            }
+        }
+        res
     };
     let mut checked_files: u32 = 0;
     let mut had_tabs: u32 = 0;

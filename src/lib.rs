@@ -4,5 +4,6 @@ extern crate glob;
 extern crate toml;
 #[macro_use] extern crate log;
 
+pub mod config;
 pub mod check;
 pub mod clean;
