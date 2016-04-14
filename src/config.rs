@@ -86,11 +86,12 @@ mod tests {
     }
     #[test]
     fn test_is_unwanted() {
-        let cfg = EnforcerCfg { ignore: vec![s("build_*"), s(".git")], endings: vec![]};
+        let cfg = EnforcerCfg { ignore: vec![s("build_*"), s(".git"), s("compiler")], endings: vec![]};
         assert!(is_unwanted(Normal(OsStr::new("build_")), &cfg.ignore));
         assert!(is_unwanted(Normal(OsStr::new("build_Debug")), &cfg.ignore));
         assert!(is_unwanted(Normal(OsStr::new(".git")), &cfg.ignore));
         assert!(!is_unwanted(Normal(OsStr::new("bla")), &cfg.ignore));
+        assert!(is_unwanted(Normal(OsStr::new("compiler")), &cfg.ignore));
     }
 }
 

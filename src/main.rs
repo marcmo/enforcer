@@ -6,18 +6,18 @@ extern crate scoped_pool;
 #[macro_use] extern crate log;
 extern crate env_logger;
 extern crate pbr;
-extern crate walkdir;
 
-use walkdir::{DirEntry, WalkDir, WalkDirIterator};
 use pbr::ProgressBar;
 use std::sync::mpsc::{sync_channel,SyncSender};
 use std::cmp::max;
 use std::thread;
 use memmap::{Mmap, Protection};
 use enforcer::config;
+use enforcer::search;
 use enforcer::check;
 use enforcer::clean;
 use std::fs;
+use std::path;
 use std::io::Read;
 use std::io::Write;
 use std::io::stdout;
@@ -90,33 +90,6 @@ fn main() {
         cfg_endings
     };
 
-    let find_matches = || -> Vec<std::path::PathBuf> {
-        let walker = WalkDir::new(".".to_owned()).into_iter();
-
-        let is_hidden = |entry: &DirEntry| -> bool {
-            entry.file_name()
-                .to_str()
-                .map(|s| {
-                    cfg_ignores.iter().any (|to_ignore| s.starts_with(to_ignore))
-                })
-                .unwrap_or(false)
-        };
-        let it = walker.filter_entry(|e| !is_hidden(e))
-            .filter_map(|e| e.ok())
-            .into_iter();
-        let mut res = Vec::new();
-        for f in it {
-            if !f.file_type().is_file() {
-                continue;
-            }
-            if f.file_name().to_str().map(|f|{
-                file_endings.iter().any (|p| f.ends_with(p))
-            }).unwrap_or(false) {
-                res.push(f.path().to_owned());
-            }
-        }
-        res
-    };
     let mut checked_files: u32 = 0;
     let mut had_tabs: u32 = 0;
     let mut had_trailing_ws: u32 = 0;
@@ -127,7 +100,7 @@ fn main() {
     let thread_count = max(args.flag_threads, 1);
     if !quiet_f { print!("finding matches...\r") }
     stdout().flush().unwrap();
-    let paths = find_matches();
+    let paths = search::find_matches(path::Path::new("."), &cfg_ignores, &file_endings);
     let count: u64 = paths.len() as u64;
     let mut pb = ProgressBar::new(count);
 
