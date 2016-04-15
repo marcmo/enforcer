@@ -1,6 +1,6 @@
 [package]
 name = "enforcer"
-version = "0.6.2"
+version = "0.6.3"
 authors = ["Oliver Mueller <oliver.mueller@gmail.com>"]
 
 [dependencies]
@@ -10,6 +10,7 @@ rustc-serialize = "0.3"
 log = "0.3"
 env_logger = "0.3"
 toml = "0.1"
+regex = "*"
 memmap = "0.3"
 scoped-pool = "*"
 walkdir = "0.1.*"

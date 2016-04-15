@@ -21,7 +21,6 @@ use std::path;
 use std::io::Read;
 use std::io::Write;
 use std::io::stdout;
-use scoped_pool::Pool;
 use docopt::Docopt;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -106,6 +105,7 @@ fn main() {
 
     let (w_chan, r_chan) = sync_channel(thread_count);
     thread::spawn(move || {
+        use scoped_pool::Pool;
         let pool = Pool::new(thread_count);
 
         print!("starting with {} threads....\r", thread_count);

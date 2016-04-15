@@ -8,6 +8,7 @@ dependencies = [
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "memmap 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pbr 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.63 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "scoped-pool 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.1.28 (registry+https://github.com/rust-lang/crates.io-index)",
