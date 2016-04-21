@@ -2,7 +2,8 @@ use std;
 use std::io;
 use toml;
 use rustc_serialize::Decodable;
-use glob::Pattern;
+use std::fs;
+use std::io::Read;
 
 #[derive(Debug, RustcDecodable, PartialEq)]
 pub struct EnforcerCfg {
@@ -12,14 +13,24 @@ pub struct EnforcerCfg {
 
 pub fn s(x: &str) -> String { x.to_string() }
 
-pub fn default_cfg() -> EnforcerCfg {
+pub fn get_cfg() -> EnforcerCfg {
+    fn read_enforcer_config() -> std::io::Result<EnforcerCfg> {
+        let mut cfg_file = try!(fs::File::open(".enforcer"));
+        let mut buffer = String::new();
+        try!(cfg_file.read_to_string(&mut buffer));
+        parse_config(&buffer[..])
+    }
+    read_enforcer_config().unwrap_or(default_cfg())
+}
+
+fn default_cfg() -> EnforcerCfg {
     EnforcerCfg {
         ignore: vec![s(".git"), s(".bake"), s(".repo")],
         endings : vec![s(".c"), s(".cpp"), s(".h")],
     }
 }
 
-pub fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
+fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
     use std::io::{Error, ErrorKind};
     debug!("parse_config");
     let mut parser = toml::Parser::new(input);
@@ -36,25 +47,11 @@ pub fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
     })
 }
 
-pub fn is_unwanted(comp: std::path::Component, to_ignore: &Vec<String>) -> bool {
-    let path_elem = comp.as_os_str()
-                        .to_str()
-                        .expect(&format!("illegal path component {:?}", comp)[..]);
-    to_ignore.iter()
-        .any(|x| Pattern::new(x)
-            .ok()
-            .expect(&format!("{} seems not to be a valid pattern", x)[..])
-            .matches(path_elem))
-}
-
-
 #[cfg(test)]
 mod tests {
     use super::s;
-    use glob::Pattern;
     use super::EnforcerCfg;
     use super::parse_config;
-    use super::is_unwanted;
     use std::ffi::OsStr;
     use std::path::Component::Normal;
 
@@ -79,19 +76,6 @@ mod tests {
             endings : vec![s(".c"), s(".cpp"), s(".h")],
         };
         assert!(expected.ignore != cfg.ignore);
-    }
-    #[test]
-    fn test_glob() {
-        assert!(Pattern::new("build_*").unwrap().matches("build_Debug"));
-    }
-    #[test]
-    fn test_is_unwanted() {
-        let cfg = EnforcerCfg { ignore: vec![s("build_*"), s(".git"), s("compiler")], endings: vec![]};
-        assert!(is_unwanted(Normal(OsStr::new("build_")), &cfg.ignore));
-        assert!(is_unwanted(Normal(OsStr::new("build_Debug")), &cfg.ignore));
-        assert!(is_unwanted(Normal(OsStr::new(".git")), &cfg.ignore));
-        assert!(!is_unwanted(Normal(OsStr::new("bla")), &cfg.ignore));
-        assert!(is_unwanted(Normal(OsStr::new("compiler")), &cfg.ignore));
     }
 }
 
