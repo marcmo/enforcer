@@ -66,8 +66,7 @@ fn main() {
             config::parse_config(&buffer[..])
         }
         read_enforcer_config()
-            .expect("configuration file could not be parsed!")
-            // .unwrap_or(config::default_cfg())
+            .unwrap_or(config::default_cfg())
     };
 
     let args: Args = Docopt::new(USAGE)
