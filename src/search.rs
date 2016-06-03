@@ -23,7 +23,10 @@ fn path_components_matches(to_ignore: &regex::Regex, path: &path::Path) -> bool 
 pub fn find_matches(start_dir: &path::Path, cfg_ignores: &Vec<String>, file_endings: &Vec<String>) -> Vec<path::PathBuf> {
     let walker = WalkDir::new(start_dir).into_iter();
     let ignore_regex = cfg_ignores.iter().fold(Vec::new(), |mut acc, ignore_glob| {
-        let r = ignore_glob.replace("*",".*").replace("?",".");
+        let r = ignore_glob
+                    .replace(".","\\.")
+                    .replace("*",".*")
+                    .replace("?",".");
         acc.push(Regex::new(&r).unwrap());
         acc
     });
@@ -37,12 +40,17 @@ pub fn find_matches(start_dir: &path::Path, cfg_ignores: &Vec<String>, file_endi
         .filter_map(|e| e.ok())
         .into_iter();
     let mut res = Vec::new();
+    let endings = file_endings.iter().fold(Vec::new(), |mut acc, ending| {
+        // support old way of writing file endings
+        acc.push(ending.replace("**/*",""));
+        acc
+    });
     for f in it {
         if !f.file_type().is_file() {
             continue;
         }
         if f.file_name().to_str().map(|f|{
-            file_endings.iter().any (|p| f.ends_with(p))
+            endings.iter().any (|p| f.ends_with(p))
         }).unwrap_or(false) {
             res.push(f.path().to_owned());
         }

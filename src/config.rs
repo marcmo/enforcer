@@ -12,6 +12,7 @@ pub struct EnforcerCfg {
 
 pub fn s(x: &str) -> String { x.to_string() }
 
+//TODO: test globs = ["**/*.h", "**/*.cpp", "**/*.c", "**/*.meta"]
 pub fn default_cfg() -> EnforcerCfg {
     EnforcerCfg {
         ignore: vec![s(".git"), s(".bake"), s(".repo")],
@@ -28,6 +29,12 @@ pub fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
     }
 
     parser.parse().map_or(Err(default_err()), |toml| {
+        if !toml.contains_key("ignore") {
+            panic!(".enforcer file needs a \"ignore\" section ");
+        }
+        if !toml.contains_key("endings") {
+            panic!(".enforcer file needs a \"endings\" section ");
+        }
         let mut decoder = toml::Decoder::new(toml::Value::Table(toml));
         EnforcerCfg::decode(&mut decoder)
             .ok()
@@ -71,14 +78,10 @@ mod tests {
         assert_eq!(expected, cfg);
     }
     #[test]
+    #[should_panic]
     fn test_load_broken_config() {
         let c = include_str!("../samples/.enforcer_broken");
-        let cfg = parse_config(c).unwrap();
-        let expected = EnforcerCfg {
-            ignore: vec![s(".git"), s(".repo")],
-            endings : vec![s(".c"), s(".cpp"), s(".h")],
-        };
-        assert!(expected.ignore != cfg.ignore);
+        parse_config(c).unwrap();
     }
     #[test]
     fn test_glob() {

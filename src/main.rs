@@ -66,7 +66,8 @@ fn main() {
             config::parse_config(&buffer[..])
         }
         read_enforcer_config()
-            .unwrap_or(config::default_cfg())
+            .expect("configuration file could not be parsed!")
+            // .unwrap_or(config::default_cfg())
     };
 
     let args: Args = Docopt::new(USAGE)
@@ -100,6 +101,9 @@ fn main() {
     if !quiet_f { print!("finding matches...\r") }
     stdout().flush().unwrap();
     let paths = search::find_matches(path::Path::new("."), &cfg_ignores, &file_endings);
+    for p in paths.clone() {
+        println!("{:?}", p);
+    }
     let count: u64 = paths.len() as u64;
     let mut pb = ProgressBar::new(count);
 
