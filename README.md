@@ -30,7 +30,7 @@ check source code for certain metrics (intended as a pre-commit hook)
 ## Example config file (name .enforcer)
 
     ignore = [".git", ".repo"]
-    globs = ["**/*.c", "**/*.cpp", "**/*.h"]
+    endings = [".c", ".cpp", ".h"]
 
 ## Configuration
 

@@ -101,9 +101,6 @@ fn main() {
     if !quiet_f { print!("finding matches...\r") }
     stdout().flush().unwrap();
     let paths = search::find_matches(path::Path::new("."), &cfg_ignores, &file_endings);
-    for p in paths.clone() {
-        println!("{:?}", p);
-    }
     let count: u64 = paths.len() as u64;
     let mut pb = ProgressBar::new(count);
 
