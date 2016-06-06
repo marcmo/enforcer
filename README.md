@@ -18,15 +18,15 @@ check source code for certain metrics (intended as a pre-commit hook)
       enforcer (-s | --status)
 
     Options:
-      -g ENDINGS        use these file endings (e.g. ".h")
-      -h --help         Show this screen.
-      -v --version      Show version.
-      -s --status       Show configuration status.
-      -q --quiet        only count found entries
-      -c --clean        clean up trailing whitespaces and convert tabs to spaces
-      -t --tabs         leave tabs alone (without that tabs are considered wrong)
-      -l --length=<n>   max line length [not checked if empty]
-      -j --threads=<N>  number of threads [default: 4]
+      -g ENDINGS        use these file endings (e.g. ".h").
+      -h --help         show this screen.
+      -v --version      show version.
+      -s --status       show configuration status.
+      -q --quiet        only count found entries.
+      -c --clean        clean up trailing whitespaces and convert tabs to spaces.
+      -t --tabs         leave tabs alone (without that tabs are considered wrong).
+      -l --length=<n>   max line length [not checked if empty].
+      -j --threads=<N>  number of threads [default: 4].
 
 ## Example config file (name .enforcer)
 
@@ -41,7 +41,7 @@ The config file uses the [TOML](https://github.com/toml-lang/toml) format.
 
 ## Example Usage
 
-Let's see how we performe on the linux kernel.
+Let's see how we perform on the linux kernel.
 
     linux-4.5 > find . -type f | wc -l
       52882
