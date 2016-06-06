@@ -12,19 +12,20 @@ check source code for certain metrics (intended as a pre-commit hook)
     enforcer for code rules
 
     Usage:
-      enforcer [-g GLOB...] [-c|--clean] [-q|--quiet] [-t|--tabs] [-j <N>|--threads=<N>]
+      enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>]
       enforcer (-h | --help)
       enforcer (-v | --version)
       enforcer (-s | --status)
 
     Options:
-      -g GLOB           use these glob patterns (e.g. "**/*.h")
+      -g ENDINGS        use these file endings (e.g. ".h")
       -h --help         Show this screen.
       -v --version      Show version.
       -s --status       Show configuration status.
       -q --quiet        only count found entries
-      -c --clean        clean up trailing whitespaces
+      -c --clean        clean up trailing whitespaces and convert tabs to spaces
       -t --tabs         leave tabs alone (without that tabs are considered wrong)
+      -l --length=<n>   max line length [not checked if empty]
       -j --threads=<N>  number of threads [default: 4]
 
 ## Example config file (name .enforcer)
