@@ -109,6 +109,24 @@ fn main() {
     let paths = search::find_matches(path::Path::new("."), &cfg_ignores, &file_endings);
     let count: u64 = paths.len() as u64;
     let mut pb = ProgressBar::new(count);
+    // logger thread
+    let (logging_tx, logging_rx) = sync_channel::<Option<String>>(0);
+    let stop_logging_tx = logging_tx.clone();
+    thread::spawn(move || {
+        let mut done = false;
+        while !done {
+            done = logging_rx.recv()
+                //convert to option
+                .ok()
+                // not done when we got a receive error (sender end of connection closed)
+                .map_or(false, |maybe_print|
+                    maybe_print
+                    // a None indicates that logging is done
+                    .map_or(true, |p|
+                            // just print the string we received
+                            {print!("{}", p); false}));
+        }
+    });
 
     let (w_chan, r_chan) = sync_channel(thread_count);
     thread::spawn(move || {
@@ -120,6 +138,7 @@ fn main() {
         pool.scoped(|scope| {
             for path in paths {
                 let ch: SyncSender<u8> = w_chan.clone();
+                let l_ch: SyncSender<Option<String>> = logging_tx.clone();
                 scope.execute(move || {
                     if !check::is_dir(path.as_path()) {
                         let p = path.clone();
@@ -131,7 +150,8 @@ fn main() {
                                                         clean_f,
                                                         !quiet_f,
                                                         max_line_length,
-                                                        if tabs_f { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
+                                                        if tabs_f { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify },
+                                                        l_ch)
                                     .ok()
                                     .expect(&format!("check_path for {:?} should work", p));
                                 ch.send(r).unwrap();
@@ -167,6 +187,7 @@ fn main() {
         if quiet_f {pb.inc();}
     }
     if quiet_f {pb.finish();};
+    let _ = stop_logging_tx.send(None);
     if args.flag_quiet {
         let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines;
         println!("{}: {}",
