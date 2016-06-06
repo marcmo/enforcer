@@ -6,6 +6,7 @@ extern crate scoped_pool;
 #[macro_use] extern crate log;
 extern crate env_logger;
 extern crate pbr;
+extern crate ansi_term;
 
 use pbr::ProgressBar;
 use std::sync::mpsc::{sync_channel,SyncSender};
@@ -22,13 +23,15 @@ use std::io::Read;
 use std::io::Write;
 use std::io::stdout;
 use docopt::Docopt;
+use ansi_term::Colour;
+use ansi_term::Style;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const USAGE: &'static str = "
 enforcer for code rules
 
 Usage:
-  enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] [-t|--tabs] [-j <N>|--threads=<N>]
+  enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>]
   enforcer (-h | --help)
   enforcer (-v | --version)
   enforcer (-s | --status)
@@ -39,8 +42,9 @@ Options:
   -v --version      Show version.
   -s --status       Show configuration status.
   -q --quiet        only count found entries
-  -c --clean        clean up trailing whitespaces
+  -c --clean        clean up trailing whitespaces and convert tabs to spaces
   -t --tabs         leave tabs alone (without that tabs are considered wrong)
+  -l --length=<n>   max line length [not checked if empty]
   -j --threads=<N>  number of threads [default: 4]
 ";
 #[derive(Debug, RustcDecodable)]
@@ -51,6 +55,7 @@ struct Args {
     flag_status: bool,
     flag_quiet: bool,
     flag_tabs: bool,
+    flag_length: usize,
     flag_threads: usize,
 }
 
@@ -93,10 +98,12 @@ fn main() {
     let mut had_tabs: u32 = 0;
     let mut had_trailing_ws: u32 = 0;
     let mut had_illegals: u32 = 0;
+    let mut had_too_long_lines: u32 = 0;
     let clean_f = args.flag_clean;
     let quiet_f = args.flag_quiet;
     let tabs_f = args.flag_tabs;
     let thread_count = max(args.flag_threads, 1);
+    let max_line_length = if args.flag_length > 0 { Some(args.flag_length) } else { None };
     if !quiet_f { print!("finding matches...\r") }
     stdout().flush().unwrap();
     let paths = search::find_matches(path::Path::new("."), &cfg_ignores, &file_endings);
@@ -123,6 +130,7 @@ fn main() {
                                                         buf,
                                                         clean_f,
                                                         !quiet_f,
+                                                        max_line_length,
                                                         if tabs_f { clean::TabStrategy::Tabify } else { clean::TabStrategy::Untabify })
                                     .ok()
                                     .expect(&format!("check_path for {:?} should work", p));
@@ -146,12 +154,12 @@ fn main() {
         });
     });
     for _ in 0..count {
-    // while let Ok(r) = r_chan.recv() {
         match r_chan.recv() {
             Ok(r) => {
                 if (r & check::HAS_TABS) > 0 { had_tabs += 1 }
                 if (r & check::TRAILING_SPACES) > 0 { had_trailing_ws += 1 }
                 if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 { had_illegals += 1 }
+                if (r & check::LINE_TOO_LONG) > 0 { had_too_long_lines += 1 }
             }
             Err(e) => { panic!("error: {}", e); }
         }
@@ -160,19 +168,33 @@ fn main() {
     }
     if quiet_f {pb.finish();};
     if args.flag_quiet {
-        println!("enforcer-error-count: {}", had_tabs + had_illegals + had_trailing_ws);
+        let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines;
+        println!("{}: {}",
+                Style::new().bold().paint("enforcer-error-count"),
+                if total_errors > 0 {
+                    Colour::Red.bold().paint(format!("{}", total_errors))
+                } else {
+                    Style::new().bold().paint(format!("{}", total_errors))
+                });
     }
-    if had_tabs + had_illegals + had_trailing_ws > 0
+    if had_tabs + had_illegals + had_trailing_ws + had_too_long_lines > 0
     {
-        println!("checked {} files (enforcer_errors!)", checked_files);
-        if had_tabs > 0 {println!("   [with TABS:{}]", had_tabs)}
-        if had_illegals > 0 {println!("   [with ILLEGAL CHARS:{}]", had_illegals)}
-        if had_trailing_ws > 0 {println!("   [with TRAILING SPACES:{}]", had_trailing_ws)}
+        println!("checked {} files {}",
+                 Style::new().bold().paint(format!("{}", checked_files)),
+                 Colour::Red.bold().paint("(enforcer_errors!)"));
+        if had_tabs > 0 { println!("   [with TABS:{}]",
+                 Colour::Red.bold().paint(format!("{}", had_tabs))) }
+        if had_illegals > 0 { println!("   [with ILLEGAL CHARS:{}]",
+                 Colour::Red.bold().paint(format!("{}", had_illegals))) }
+        if had_trailing_ws > 0 { println!("   [with TRAILING SPACES:{}]",
+                 Colour::Red.bold().paint(format!("{}", had_trailing_ws))) }
+        if had_too_long_lines > 0 { println!("   [with TOO LONG LINES:{}]",
+                 Colour::Red.bold().paint(format!("{}", had_too_long_lines))) }
         std::process::exit(1);
     }
     else
     {
-        println!("checked {} files (enforcer_clean!)", checked_files);
+        println!("checked {} files {}", checked_files, Colour::Green.bold().paint("(enforcer_clean!)"));
         std::process::exit(0);
     }
 }
