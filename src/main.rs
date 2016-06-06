@@ -19,7 +19,6 @@ use enforcer::check;
 use enforcer::clean;
 use std::fs;
 use std::path;
-use std::io::Read;
 use std::io::Write;
 use std::io::stdout;
 use docopt::Docopt;
@@ -63,17 +62,6 @@ struct Args {
 fn main() {
     env_logger::init().unwrap();
 
-    let get_cfg = || -> config::EnforcerCfg {
-        fn read_enforcer_config() -> std::io::Result<config::EnforcerCfg> {
-            let mut cfg_file = try!(fs::File::open(".enforcer"));
-            let mut buffer = String::new();
-            try!(cfg_file.read_to_string(&mut buffer));
-            config::parse_config(&buffer[..])
-        }
-        read_enforcer_config()
-            .unwrap_or(config::default_cfg())
-    };
-
     let args: Args = Docopt::new(USAGE)
                             .and_then(|d| d.decode())
                             .unwrap_or_else(|e| e.exit());
@@ -81,7 +69,7 @@ fn main() {
         println!("  Version: {}", VERSION);
         std::process::exit(0);
     }
-    let enforcer_cfg = get_cfg();
+    let enforcer_cfg = config::get_cfg();
     if args.flag_status {
         println!("  using this config: {:?}", enforcer_cfg);
         std::process::exit(0);

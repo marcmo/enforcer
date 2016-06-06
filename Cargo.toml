@@ -1,10 +1,9 @@
 [package]
 name = "enforcer"
-version = "0.7.2"
+version = "0.7.3"
 authors = ["Oliver Mueller <oliver.mueller@gmail.com>"]
 
 [dependencies]
-glob = "*"
 docopt = "0.6"
 rustc-serialize = "0.3"
 log = "0.3"
