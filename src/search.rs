@@ -7,34 +7,34 @@ use self::regex::Regex;
 
 // find out if any path component in the path fully matches the regex
 fn path_components_matches(to_ignore: &regex::Regex, path: &path::Path) -> bool {
-    path.components().any (|path_comp| {
-        match path_comp.as_os_str().to_str(){
+    path.components().any(|path_comp| {
+        match path_comp.as_os_str().to_str() {
             Some(s) => {
                 match to_ignore.find(s) {
-                    Some((0,b)) => { s.len() == b },
-                    _ => false
+                    Some((0, b)) => s.len() == b,
+                    _ => false,
                 }
             }
-            None => false
+            None => false,
         }
     })
 }
 
-pub fn find_matches(start_dir: &path::Path, cfg_ignores: &Vec<String>, file_endings: &Vec<String>) -> Vec<path::PathBuf> {
+pub fn find_matches(start_dir: &path::Path,
+                    cfg_ignores: &Vec<String>,
+                    file_endings: &Vec<String>)
+                    -> Vec<path::PathBuf> {
     let walker = WalkDir::new(start_dir).into_iter();
     let ignore_regex = cfg_ignores.iter().fold(Vec::new(), |mut acc, ignore_glob| {
-        let r = ignore_glob
-                    .replace(".","\\.")
-                    .replace("*",".*")
-                    .replace("?",".");
+        let r = ignore_glob.replace(".", "\\.")
+            .replace("*", ".*")
+            .replace("?", ".");
         acc.push(Regex::new(&r).unwrap());
         acc
     });
 
     let to_ignore = |entry: &DirEntry| -> bool {
-        ignore_regex.iter().any(|to_ignore| {
-            path_components_matches(to_ignore, entry.path())
-        })
+        ignore_regex.iter().any(|to_ignore| path_components_matches(to_ignore, entry.path()))
     };
     let it = walker.filter_entry(|e| !to_ignore(e))
         .filter_map(|e| e.ok())
@@ -42,16 +42,17 @@ pub fn find_matches(start_dir: &path::Path, cfg_ignores: &Vec<String>, file_endi
     let mut res = Vec::new();
     let endings = file_endings.iter().fold(Vec::new(), |mut acc, ending| {
         // support old way of writing file endings
-        acc.push(ending.replace("**/*",""));
+        acc.push(ending.replace("**/*", ""));
         acc
     });
     for f in it {
         if !f.file_type().is_file() {
             continue;
         }
-        if f.file_name().to_str().map(|f|{
-            endings.iter().any (|p| f.ends_with(p))
-        }).unwrap_or(false) {
+        if f.file_name()
+            .to_str()
+            .map(|f| endings.iter().any(|p| f.ends_with(p)))
+            .unwrap_or(false) {
             res.push(f.path().to_owned());
         }
     }
@@ -66,7 +67,9 @@ mod tests {
     use self::regex::Regex;
     use std::path;
 
-    fn s(x: &str) -> String { x.to_string() }
+    fn s(x: &str) -> String {
+        x.to_string()
+    }
 
     #[test]
     fn test_find_all_matches() {

@@ -11,7 +11,9 @@ pub struct EnforcerCfg {
     pub endings: Vec<String>,
 }
 
-pub fn s(x: &str) -> String { x.to_string() }
+pub fn s(x: &str) -> String {
+    x.to_string()
+}
 
 pub fn get_cfg() -> EnforcerCfg {
     fn read_enforcer_config() -> std::io::Result<EnforcerCfg> {
@@ -26,7 +28,7 @@ pub fn get_cfg() -> EnforcerCfg {
 fn default_cfg() -> EnforcerCfg {
     EnforcerCfg {
         ignore: vec![s(".git"), s(".bake"), s(".repo")],
-        endings : vec![s(".c"), s(".cpp"), s(".h")],
+        endings: vec![s(".c"), s(".cpp"), s(".h")],
     }
 }
 
@@ -48,8 +50,7 @@ pub fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
         let mut decoder = toml::Decoder::new(toml::Value::Table(toml));
         EnforcerCfg::decode(&mut decoder)
             .ok()
-            .map_or(Err(default_err()), |config|
-                Ok(config))
+            .map_or(Err(default_err()), |config| Ok(config))
     })
 }
 
@@ -66,7 +67,7 @@ mod tests {
         assert_eq!(cfg.ignore.len(), 2);
         let expected = EnforcerCfg {
             ignore: vec![s(".git"), s(".repo")],
-            endings : vec![s(".c"), s(".cpp"), s(".h")],
+            endings: vec![s(".c"), s(".cpp"), s(".h")],
         };
         assert_eq!(expected.ignore, cfg.ignore);
         assert_eq!(expected, cfg);
@@ -78,4 +79,3 @@ mod tests {
         parse_config(c).unwrap();
     }
 }
-

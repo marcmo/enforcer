@@ -1,7 +1,10 @@
 use std::str::Chars;
 
 #[derive(Clone, PartialEq)]
-pub enum TabStrategy { Untabify, Tabify }
+pub enum TabStrategy {
+    Untabify,
+    Tabify,
+}
 
 fn to_spaces(line: Chars, width: u8) -> String {
     let mut result: Vec<char> = Vec::new();
@@ -10,13 +13,19 @@ fn to_spaces(line: Chars, width: u8) -> String {
         match c {
             '\t' => {
                 let spaces = width - column;
-                for _ in 0..spaces {result.push(' ')};
+                for _ in 0..spaces {
+                    result.push(' ')
+                }
                 column = 0;
-            },
+            }
             _ => {
-                column = if column == width - 1 { 0 } else { (column+1)%width };
+                column = if column == width - 1 {
+                    0
+                } else {
+                    (column + 1) % width
+                };
                 result.push(c)
-            },
+            }
         }
     }
     result.into_iter().collect()
@@ -26,30 +35,34 @@ fn to_tabs(_: Chars, _: u8) -> String {
     String::new()
 }
 
-pub fn space_tabs_conversion<S>(content: S, s: TabStrategy) -> String where S: Into<String>{
-    let converted: Vec<String> = content.into().lines()
+pub fn space_tabs_conversion<S>(content: S, s: TabStrategy) -> String
+    where S: Into<String>
+{
+    let converted: Vec<String> = content.into()
+        .lines()
         .map(|line| {
             match s {
                 TabStrategy::Untabify => to_spaces(line.chars(), 4),
                 TabStrategy::Tabify => to_tabs(line.chars(), 4),
             }
-        }).collect();
+        })
+        .collect();
     let mut res = converted.join("\n");
     res.push_str("\n");
     res
 }
 
-pub fn remove_trailing_whitespaces<S>(input: S) -> String where S: Into<String>{
+pub fn remove_trailing_whitespaces<S>(input: S) -> String
+    where S: Into<String>
+{
     let s = input.into();
-    let v: Vec<&str> = s
-        .lines()
+    let v: Vec<&str> = s.lines()
         .map(|line| line.trim_right())
         .collect();
 
     if s.ends_with("\n") {
         v.join("\n") + "\n"
-    }
-    else {
+    } else {
         v.join("\n")
     }
 }
