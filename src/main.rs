@@ -41,19 +41,19 @@ Usage:
 
 Options:
   -g ENDINGS        use these file \
-     endings (e.g. \".h\")
-  -h --help         Show this screen.
-  -v --version      Show \
+     endings (e.g. \".h\").
+  -h --help         show this screen.
+  -v --version      show \
      version.
-  -s --status       Show configuration status.
+  -s --status       show configuration status.
   -q --quiet        only count found \
-     entries
-  -c --clean        clean up trailing whitespaces and convert tabs to spaces
+     entries.
+  -c --clean        clean up trailing whitespaces and convert tabs to spaces.
   -t \
-     --tabs         leave tabs alone (without that tabs are considered wrong)
+     --tabs         leave tabs alone (without that tabs are considered wrong).
   -l --length=<n>   \
-     max line length [not checked if empty]
-  -j --threads=<N>  number of threads [default: 4]
+     max line length [not checked if empty].
+  -j --threads=<N>  number of threads [default: 4].
 ";
 #[derive(Debug, RustcDecodable)]
 struct Args {
