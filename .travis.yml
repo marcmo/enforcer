@@ -1,1 +1,18 @@
 language: rust
+rust:
+  - stable
+  - beta
+sudo: false
+before_script:
+  - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
+script:
+  - export CARGO_TARGET_DIR=`pwd`/target
+  - cargo test
+after_success:
+  - travis-cargo coveralls --no-sudo
+notifications:
+  email:
+    on_success: never
+os:
+  - linux
+  - osx
