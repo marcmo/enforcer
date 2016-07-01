@@ -4,7 +4,7 @@ use std::path::Path;
 use std::fs::File;
 use std::fs::metadata;
 use std::io::prelude::*;
-use ansi_term::Colour;
+use ansi_term;
 use std::sync::mpsc::SyncSender;
 use clean;
 
@@ -131,20 +131,38 @@ pub fn check_path(path: &Path,
     Ok(check)
 }
 
+
+#[cfg (not(target_os = "windows"))]
+fn red(s: &str) -> ansi_term::ANSIString {
+    ansi_term::Colour::Red.bold().paint(s)
+}
+#[cfg (not(target_os = "windows"))]
+fn yellow(s: &str) -> ansi_term::ANSIString {
+    ansi_term::Colour::Yellow.bold().paint(s)
+}
+#[cfg (target_os = "windows")]
+fn red(s: &str) -> ansi_term::ANSIString {
+    ansi_term::Style::new().paint(s)
+}
+#[cfg (target_os = "windows")]
+fn yellow(s: &str) -> ansi_term::ANSIString {
+    ansi_term::Style::new().paint(s)
+}
+
 fn report(check: u8, path: &Path, logger: SyncSender<Option<String>>) -> () {
     if check > 0 {
         let mut output = "".to_string();
         if (check & HAS_TABS) > 0 {
-            output = output + &format!(":{}", Colour::Red.bold().paint("HAS_TABS"));
+            output = output + &format!(":{}", red("HAS_TABS"));
         }
         if (check & TRAILING_SPACES) > 0 {
-            output = output + &format!(":{}", Colour::Red.bold().paint("TRAILING_SPACES"));
+            output = output + &format!(":{}", red("TRAILING_SPACES"));
         }
         if (check & HAS_ILLEGAL_CHARACTERS) > 0 {
-            output = output + &format!(":{}", Colour::Red.bold().paint("ILLEGAL_CHARACTERS"));
+            output = output + &format!(":{}", red("ILLEGAL_CHARACTERS"));
         }
         if (check & LINE_TOO_LONG) > 0 {
-            output = output + &format!(":{}", Colour::Yellow.bold().paint("LINE_TOO_LONG"));
+            output = output + &format!(":{}", yellow("LINE_TOO_LONG"));
         }
         let _ = logger.send(Some(format!("{}:[{}]\n", output, path.display())));
     }
