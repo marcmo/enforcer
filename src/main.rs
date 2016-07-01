@@ -23,36 +23,28 @@ use std::path;
 use std::io::Write;
 use std::io::stdout;
 use docopt::Docopt;
-use ansi_term::Colour;
-use ansi_term::Style;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const USAGE: &'static str =
-    "
+"
 enforcer for code rules
 
 Usage:
   enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] \
-     [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>]
+    [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>]
   enforcer (-h | --help)
-  enforcer \
-     (-v | --version)
+  enforcer (-v | --version)
   enforcer (-s | --status)
 
 Options:
-  -g ENDINGS        use these file \
-     endings (e.g. \".h\").
+  -g ENDINGS        use these file endings (e.g. \".h\").
   -h --help         show this screen.
-  -v --version      show \
-     version.
+  -v --version      show version.
   -s --status       show configuration status.
-  -q --quiet        only count found \
-     entries.
+  -q --quiet        only count found entries.
   -c --clean        clean up trailing whitespaces and convert tabs to spaces.
-  -t \
-     --tabs         leave tabs alone (without that tabs are considered wrong).
-  -l --length=<n>   \
-     max line length [not checked if empty].
+  -t --tabs         leave tabs alone (without that tabs are considered wrong).
+  -l --length=<n>   max line length [not checked if empty].
   -j --threads=<N>  number of threads [default: 4].
 ";
 #[derive(Debug, RustcDecodable)]
@@ -123,11 +115,11 @@ fn main() {
                 .ok()
                 // not done when we got a receive error (sender end of connection closed)
                 .map_or(false, |maybe_print|
-                    maybe_print
-                    // a None indicates that logging is done
-                    .map_or(true, |p|
-                            // just print the string we received
-                            {print!("{}", p); false}));
+                        maybe_print
+                        // a None indicates that logging is done
+                        .map_or(true, |p|
+                                // just print the string we received
+                                {print!("{}", p); false}));
         }
     });
 
@@ -149,16 +141,16 @@ fn main() {
                             Ok(map) => {
                                 let buf = unsafe { map.as_slice() };
                                 let r = check::check_path(p.as_path(),
-                                                          buf,
-                                                          clean_f,
-                                                          !quiet_f,
-                                                          max_line_length,
-                                                          if tabs_f {
-                                                              clean::TabStrategy::Tabify
-                                                          } else {
-                                                              clean::TabStrategy::Untabify
-                                                          },
-                                                          l_ch)
+                                buf,
+                                clean_f,
+                                !quiet_f,
+                                max_line_length,
+                                if tabs_f {
+                                    clean::TabStrategy::Tabify
+                                } else {
+                                    clean::TabStrategy::Untabify
+                                },
+                                l_ch)
                                     .ok()
                                     .expect(&format!("check_path for {:?} should work", p));
                                 ch.send(r).unwrap();
@@ -212,38 +204,30 @@ fn main() {
     if args.flag_quiet {
         let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines;
         println!("{}: {}",
-                 Style::new().bold().paint("enforcer-error-count"),
-                 if total_errors > 0 {
-                     Colour::Red.bold().paint(format!("{}", total_errors))
-                 } else {
-                     Style::new().bold().paint(format!("{}", total_errors))
-                 });
+                 check::bold("enforcer-error-count"),
+                 total_errors);
     }
     if had_tabs + had_illegals + had_trailing_ws + had_too_long_lines > 0 {
         println!("checked {} files {}",
-                 Style::new().bold().paint(format!("{}", checked_files)),
-                 Colour::Red.bold().paint("(enforcer_errors!)"));
+                 checked_files,
+                 check::bold("(enforcer_errors!)"));
         if had_tabs > 0 {
-            println!("   [with TABS:{}]",
-                     Colour::Red.bold().paint(format!("{}", had_tabs)))
+            println!("   [with TABS:{}]", had_tabs)
         }
         if had_illegals > 0 {
-            println!("   [with ILLEGAL CHARS:{}]",
-                     Colour::Red.bold().paint(format!("{}", had_illegals)))
+            println!("   [with ILLEGAL CHARS:{}]", had_illegals)
         }
         if had_trailing_ws > 0 {
-            println!("   [with TRAILING SPACES:{}]",
-                     Colour::Red.bold().paint(format!("{}", had_trailing_ws)))
+            println!("   [with TRAILING SPACES:{}]", had_trailing_ws)
         }
         if had_too_long_lines > 0 {
-            println!("   [with TOO LONG LINES:{}]",
-                     Colour::Red.bold().paint(format!("{}", had_too_long_lines)))
+            println!("   [with TOO LONG LINES:{}]", had_too_long_lines)
         }
         std::process::exit(1);
     } else {
         println!("checked {} files {}",
                  checked_files,
-                 Colour::Green.bold().paint("(enforcer_clean!)"));
+                 check::green("(enforcer_clean!)"));
         std::process::exit(0);
     }
 }

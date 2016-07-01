@@ -133,19 +133,35 @@ pub fn check_path(path: &Path,
 
 
 #[cfg (not(target_os = "windows"))]
-fn red(s: &str) -> ansi_term::ANSIString {
+pub fn red(s: &str) -> ansi_term::ANSIString {
     ansi_term::Colour::Red.bold().paint(s)
 }
 #[cfg (not(target_os = "windows"))]
-fn yellow(s: &str) -> ansi_term::ANSIString {
+pub fn yellow(s: &str) -> ansi_term::ANSIString {
     ansi_term::Colour::Yellow.bold().paint(s)
 }
+#[cfg (not(target_os = "windows"))]
+pub fn green(s: &str) -> ansi_term::ANSIString {
+    ansi_term::Colour::Green.bold().paint(s)
+}
+#[cfg (not(target_os = "windows"))]
+pub fn bold(s: &str) -> ansi_term::ANSIString {
+    ansi_term::Style::new().bold().paint(s)
+}
 #[cfg (target_os = "windows")]
-fn red(s: &str) -> ansi_term::ANSIString {
+pub fn red(s: &str) -> ansi_term::ANSIString {
     ansi_term::Style::new().paint(s)
 }
 #[cfg (target_os = "windows")]
-fn yellow(s: &str) -> ansi_term::ANSIString {
+pub fn yellow(s: &str) -> ansi_term::ANSIString {
+    ansi_term::Style::new().paint(s)
+}
+#[cfg (target_os = "windows")]
+pub fn green(s: &str) -> ansi_term::ANSIString {
+    ansi_term::Style::new().paint(s)
+}
+#[cfg (target_os = "windows")]
+pub fn bold(s: &str) -> ansi_term::ANSIString {
     ansi_term::Style::new().paint(s)
 }
 
