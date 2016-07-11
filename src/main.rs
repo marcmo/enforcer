@@ -20,8 +20,6 @@ use enforcer::check;
 use enforcer::clean;
 use std::fs;
 use std::path;
-use std::io::Write;
-use std::io::stdout;
 use docopt::Docopt;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -31,7 +29,8 @@ enforcer for code rules
 
 Usage:
   enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] \
-    [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>]
+      [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>] \
+    [-a|--color]
   enforcer (-h | --help)
   enforcer (-v | --version)
   enforcer (-s | --status)
@@ -46,6 +45,7 @@ Options:
   -t --tabs         leave tabs alone (without that tabs are considered wrong).
   -l --length=<n>   max line length [not checked if empty].
   -j --threads=<N>  number of threads [default: 4].
+  -a --color        use ANSI colored output
 ";
 #[derive(Debug, RustcDecodable)]
 struct Args {
@@ -57,6 +57,7 @@ struct Args {
     flag_tabs: bool,
     flag_length: usize,
     flag_threads: usize,
+    flag_color: bool,
 }
 
 #[allow(dead_code)]
@@ -92,15 +93,12 @@ fn main() {
     let quiet_f = args.flag_quiet;
     let tabs_f = args.flag_tabs;
     let thread_count = max(args.flag_threads, 1);
+    let color_f = args.flag_color;
     let max_line_length = if args.flag_length > 0 {
         Some(args.flag_length)
     } else {
         None
     };
-    if !quiet_f {
-        print!("finding matches...\r")
-    }
-    stdout().flush().unwrap();
     let paths = search::find_matches(path::Path::new("."), &cfg_ignores, &file_endings);
     let count: u64 = paths.len() as u64;
     let mut pb = ProgressBar::new(count);
@@ -128,8 +126,6 @@ fn main() {
         use scoped_pool::Pool;
         let pool = Pool::new(thread_count);
 
-        print!("starting with {} threads....\r", thread_count);
-        stdout().flush().unwrap();
         pool.scoped(|scope| {
             for path in paths {
                 let ch: SyncSender<u8> = w_chan.clone();
@@ -203,14 +199,22 @@ fn main() {
     let _ = stop_logging_tx.send(None);
     if args.flag_quiet {
         let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines;
-        println!("{}: {}",
-                 check::bold("enforcer-error-count"),
-                 total_errors);
+        if color_f{
+            println!("{}: {}",
+                     check::bold("enforcer-error-count"),
+                     total_errors);
+        } else {
+            println!("enforcer-error-count: {}", total_errors);
+        }
     }
     if had_tabs + had_illegals + had_trailing_ws + had_too_long_lines > 0 {
-        println!("checked {} files {}",
-                 checked_files,
-                 check::bold("(enforcer_errors!)"));
+        if color_f{
+            println!("checked {} files {}",
+                     checked_files,
+                     check::bold("(enforcer_errors!)"));
+        } else {
+            println!("checked {} files (enforcer_errors!)", checked_files);
+        }
         if had_tabs > 0 {
             println!("   [with TABS:{}]", had_tabs)
         }
@@ -225,9 +229,15 @@ fn main() {
         }
         std::process::exit(1);
     } else {
-        println!("checked {} files {}",
-                 checked_files,
-                 check::green("(enforcer_clean!)"));
+        if color_f{
+            println!("checked {} files {}",
+                     checked_files,
+                     check::green("(enforcer_clean!)"));
+        } else {
+            println!("checked {} files (enforcer_clean!)", checked_files);
+        }
+
+
         std::process::exit(0);
     }
 }

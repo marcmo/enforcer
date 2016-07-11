@@ -37,7 +37,7 @@ fn check_content<'a>(input: &'a str,
         if line.as_bytes().iter().any(|x| *x > 127) {
             if verbose {
                 let _ =
-                    logger.send(Some(format!("non ASCII line [{}]: {} [{}]", i, line, filename)));
+                    logger.send(Some(format!("{}, line {}: error: non ASCII line\n", filename, i)));
             }
             result |= HAS_ILLEGAL_CHARACTERS;
         }
@@ -63,7 +63,7 @@ fn report_offending_line(path: &Path, logger: SyncSender<Option<String>>) -> std
             Some(_) => i = i + 1,
             None => {
                 let _ = logger.send(
-                    Some(format!("offending line {} in file [{}]\n", i, path.display())));
+                    Some(format!("{}, line {}: error: non UTF-8 character in line\n", path.display(), i)));
             }
         }
     }
@@ -118,12 +118,6 @@ pub fn check_path(path: &Path,
                 };
                 let mut file = try!(File::create(path));
                 try!(file.write_all(res_string.as_bytes()));
-            } else
-            // report only
-            {
-                if verbose {
-                    report(check, &path, logger)
-                }
             }
         }
     };
@@ -163,25 +157,6 @@ pub fn green(s: &str) -> ansi_term::ANSIString {
 #[cfg (target_os = "windows")]
 pub fn bold(s: &str) -> ansi_term::ANSIString {
     ansi_term::Style::new().paint(s)
-}
-
-fn report(check: u8, path: &Path, logger: SyncSender<Option<String>>) -> () {
-    if check > 0 {
-        let mut output = "".to_string();
-        if (check & HAS_TABS) > 0 {
-            output = output + &format!(":{}", red("HAS_TABS"));
-        }
-        if (check & TRAILING_SPACES) > 0 {
-            output = output + &format!(":{}", red("TRAILING_SPACES"));
-        }
-        if (check & HAS_ILLEGAL_CHARACTERS) > 0 {
-            output = output + &format!(":{}", red("ILLEGAL_CHARACTERS"));
-        }
-        if (check & LINE_TOO_LONG) > 0 {
-            output = output + &format!(":{}", yellow("LINE_TOO_LONG"));
-        }
-        let _ = logger.send(Some(format!("{}:[{}]\n", output, path.display())));
-    }
 }
 
 #[cfg(test)]
