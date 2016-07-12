@@ -128,7 +128,7 @@ fn main() {
 
         pool.scoped(|scope| {
             for path in paths {
-                let ch: SyncSender<u8> = w_chan.clone();
+                let ch: SyncSender<Result<u8, std::io::Error>> = w_chan.clone();
                 let l_ch: SyncSender<Option<String>> = logging_tx.clone();
                 scope.execute(move || {
                     if !check::is_dir(path.as_path()) {
@@ -136,19 +136,18 @@ fn main() {
                         match Mmap::open_path(path, Protection::Read) {
                             Ok(map) => {
                                 let buf = unsafe { map.as_slice() };
-                                let r = check::check_path(p.as_path(),
-                                buf,
-                                clean_f,
-                                !quiet_f,
-                                max_line_length,
-                                if tabs_f {
-                                    clean::TabStrategy::Tabify
-                                } else {
-                                    clean::TabStrategy::Untabify
-                                },
-                                l_ch)
-                                    .ok()
-                                    .expect(&format!("check_path for {:?} should work", p));
+                                let r = check::check_path(
+                                    p.as_path(),
+                                    buf,
+                                    clean_f,
+                                    !quiet_f,
+                                    max_line_length,
+                                    if tabs_f {
+                                        clean::TabStrategy::Tabify
+                                    } else {
+                                        clean::TabStrategy::Untabify
+                                    },
+                                    l_ch);
                                 ch.send(r).unwrap();
                             }
                             Err(e) => {
@@ -157,7 +156,7 @@ fn main() {
                                     Err(_) => panic!("mmap read error: {}", e),
                                 };
                                 if len == 0 {
-                                    ch.send(0).unwrap();
+                                    ch.send(Ok(0)).unwrap();
                                 } else {
                                     panic!("unexpected result for {:?}", p);
                                 }
@@ -170,22 +169,29 @@ fn main() {
     });
     for _ in 0..count {
         match r_chan.recv() {
-            Ok(r) => {
-                if (r & check::HAS_TABS) > 0 {
-                    had_tabs += 1
-                }
-                if (r & check::TRAILING_SPACES) > 0 {
-                    had_trailing_ws += 1
-                }
-                if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 {
-                    had_illegals += 1
-                }
-                if (r & check::LINE_TOO_LONG) > 0 {
-                    had_too_long_lines += 1
+            Ok(res) => {
+                match res {
+                    Ok(r)  => {
+                        if (r & check::HAS_TABS) > 0 {
+                            had_tabs += 1
+                        }
+                        if (r & check::TRAILING_SPACES) > 0 {
+                            had_trailing_ws += 1
+                        }
+                        if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 {
+                            had_illegals += 1
+                        }
+                        if (r & check::LINE_TOO_LONG) > 0 {
+                            had_too_long_lines += 1
+                        }
+                    }
+                    Err(e) => {
+                        println!("error occured here: {}", e);
+                    }
                 }
             }
             Err(e) => {
-                panic!("error: {}", e);
+                panic!("error in channel: {}", e);
             }
         }
         checked_files += 1;
