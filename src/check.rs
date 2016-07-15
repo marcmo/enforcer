@@ -27,12 +27,16 @@ fn check_content<'a>(input: &'a str,
         i += 1;
         if max_line_length.is_some() && line.len() > max_line_length.unwrap() {
             result |= LINE_TOO_LONG;
+            let _ = logger.send(Some(format!("{}, line {}: error: LINE_TOO_LONG\n", filename, i)));
         }
         if line.ends_with(' ') || line.ends_with('\t') {
             result |= TRAILING_SPACES;
+            let _ =
+                logger.send(Some(format!("{}, line {}: error: TRAILING_SPACES\n", filename, i)));
         }
         if s == clean::TabStrategy::Untabify && line.contains("\t") {
             result |= HAS_TABS;
+            let _ = logger.send(Some(format!("{}, line {}: error: HAS_TABS\n", filename, i)));
         }
         if line.as_bytes().iter().any(|x| *x > 127) {
             if verbose {
@@ -62,8 +66,10 @@ fn report_offending_line(path: &Path, logger: SyncSender<Option<String>>) -> std
         match line.ok() {
             Some(_) => i = i + 1,
             None => {
-                let _ = logger.send(
-                    Some(format!("{}, line {}: error: non UTF-8 character in line\n", path.display(), i)));
+                let _ =
+                    logger.send(Some(format!("{}, line {}: error: non UTF-8 character in line\n",
+                                             path.display(),
+                                             i)));
             }
         }
     }
@@ -96,26 +102,26 @@ pub fn check_path(path: &Path,
                                            s,
                                            logger.clone()));
             }
+            let no_trailing_ws = if (check & TRAILING_SPACES) > 0 && clean {
+                if verbose {
+                    let _ =
+                        logger.send(Some(format!("TRAILING_SPACES:[{}] -> removing\n",
+                                                 path.display())));
+                }
+                clean::remove_trailing_whitespaces(buffer)
+            } else {
+                buffer.to_string()
+            };
+            let res_string = if (check & HAS_TABS) > 0 && clean {
+                if verbose {
+                    let _ = logger.send(Some(format!("HAS_TABS:[{}] -> converting to spaces\n",
+                                                     path.display())));
+                }
+                clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
+            } else {
+                no_trailing_ws
+            };
             if clean {
-                let no_trailing_ws = if (check & TRAILING_SPACES) > 0 {
-                    if verbose {
-                        let _ = logger.send(Some(format!("TRAILING_SPACES:[{}] -> removing\n",
-                                                         path.display())));
-                    }
-                    clean::remove_trailing_whitespaces(buffer)
-                } else {
-                    buffer.to_string()
-                };
-                let res_string = if (check & HAS_TABS) > 0 {
-                    if verbose {
-                        let _ = logger.send(Some(format!("HAS_TABS:[{}] -> converting to \
-                                                          spaces\n",
-                                                         path.display())));
-                    }
-                    clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
-                } else {
-                    no_trailing_ws
-                };
                 let mut file = try!(File::create(path));
                 try!(file.write_all(res_string.as_bytes()));
             }
