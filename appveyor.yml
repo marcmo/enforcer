@@ -13,7 +13,7 @@ test_script:
   - cargo test --verbose
 
 artifacts:
-  - path: enforcer.zip
+  - path: enforcer$(appveyor_build_version).zip
     name: Enforcer
 
 deploy:
