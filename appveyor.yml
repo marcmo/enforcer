@@ -14,7 +14,7 @@ test_script:
 
 artifacts:
   - path: enforcer.zip
-  - name: Enforcer
+    name: Enforcer
 
 deploy:
   release: enforcer$(appveyor_build_version)
