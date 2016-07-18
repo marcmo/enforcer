@@ -9,9 +9,22 @@ build: none
 
 test_script:
   - cargo build --release
-  - cmd: 7z a enforcer.zip target/release/enforcer.exe
+  - cmd: 7z a enforcer$(appveyor_build_version).zip target/release/enforcer.exe
   - cargo test --verbose
 
 artifacts:
   - path: enforcer.zip
-    name: Enforcer
+  - name: Enforcer
+
+deploy:
+  release: enforcer$(appveyor_build_version)
+  description: 'windows build'
+  provider: GitHub
+  auth_token:
+    secure: N4GrYfvlyx33sighQh9einBAFVoiXAnIhvIEfoj75UH+MH5sFNvp49BNF+ysN+Dw
+  artifact: enforcer$(appveyor_build_version).zip
+  draft: false
+  prerelease: false
+  on:
+    branch: master                 # release from master branch only
+    appveyor_repo_tag: true        # deploy on tag push only
