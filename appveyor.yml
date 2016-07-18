@@ -17,7 +17,6 @@ artifacts:
     name: Enforcer
 
 deploy:
-  release: enforcer
   description: 'windows build'
   provider: GitHub
   auth_token:
