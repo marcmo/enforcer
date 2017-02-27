@@ -19,7 +19,7 @@ fn check_content<'a>(input: &'a str,
                      max_line_length: Option<usize>,
                      s: clean::TabStrategy,
                      logger: SyncSender<Option<String>>)
-                     -> io::Result<u8> {
+-> io::Result<u8> {
     debug!("check content of {}", filename);
     let mut result = 0;
     let mut i: u32 = 0;
@@ -39,16 +39,19 @@ fn check_content<'a>(input: &'a str,
         }
         if verbose {
             if (result & LINE_TOO_LONG) > 0 {
-                let _ = logger.send(Some(format!("{}, line {}: error: LINE_TOO_LONG\n", filename, i)));
+                let _ =
+                    logger.send(Some(format!("{}, line {}: error: LINE_TOO_LONG\n", filename, i)));
             }
             if (result & TRAILING_SPACES) > 0 {
-                let _ = logger.send(Some(format!("{}, line {}: error: TRAILING_SPACES\n", filename, i)));
+                let _ =
+                    logger.send(Some(format!("{}, line {}: error: TRAILING_SPACES\n", filename, i)));
             }
             if (result & HAS_TABS) > 0 {
                 let _ = logger.send(Some(format!("{}, line {}: error: HAS_TABS\n", filename, i)));
             }
             if (result & HAS_ILLEGAL_CHARACTERS) > 0 {
-                let _ = logger.send(Some(format!("{}, line {}: error: non ASCII line\n", filename, i)));
+                let _ =
+                    logger.send(Some(format!("{}, line {}: error: non ASCII line\n", filename, i)));
             }
         }
     }
@@ -83,59 +86,59 @@ fn report_offending_line(path: &Path, logger: SyncSender<Option<String>>) -> std
 }
 
 pub fn check_path(path: &Path,
-                  buf: &[u8],
+                  buf: &Vec<u8>,
                   clean: bool,
                   verbose: bool,
                   max_line_length: Option<usize>,
                   s: clean::TabStrategy,
                   logger: SyncSender<Option<String>>)
-                  -> io::Result<u8> {
-    let mut check = 0;
-    match std::str::from_utf8(buf) {
-        Err(_) => {
-            check = check | HAS_ILLEGAL_CHARACTERS;
-            if verbose {
-                let _ = report_offending_line(path, logger);
-            }
-            return Ok(check);
-        }
-        Ok(buffer) => {
-            if check == 0 {
-                check = try!(check_content(&buffer,
-                                           path.to_str().expect("not available"),
-                                           verbose,
-                                           max_line_length,
-                                           s,
-                                           logger.clone()));
-            }
-            let no_trailing_ws = if (check & TRAILING_SPACES) > 0 && clean {
+    -> io::Result<u8> {
+        let mut check = 0;
+        match std::str::from_utf8(buf) {
+            Err(_) => {
+                check = check | HAS_ILLEGAL_CHARACTERS;
                 if verbose {
-                    let _ =
-                        logger.send(Some(format!("TRAILING_SPACES:[{}] -> removing\n",
-                                                 path.display())));
+                    let _ = report_offending_line(path, logger);
                 }
-                clean::remove_trailing_whitespaces(buffer)
-            } else {
-                buffer.to_string()
-            };
-            let res_string = if (check & HAS_TABS) > 0 && clean {
-                if verbose {
-                    let _ = logger.send(Some(format!("HAS_TABS:[{}] -> converting to spaces\n",
+                return Ok(check);
+            }
+            Ok(buffer) => {
+                if check == 0 {
+                    check = try!(check_content(&buffer,
+                                               path.to_str().expect("not available"),
+                                               verbose,
+                                               max_line_length,
+                                               s,
+                                               logger.clone()));
+                }
+                let no_trailing_ws = if (check & TRAILING_SPACES) > 0 && clean {
+                    if verbose {
+                        let _ =
+                            logger.send(Some(format!("TRAILING_SPACES:[{}] -> removing\n",
                                                      path.display())));
+                    }
+                    clean::remove_trailing_whitespaces(buffer)
+                } else {
+                    buffer.to_string()
+                };
+                let res_string = if (check & HAS_TABS) > 0 && clean {
+                    if verbose {
+                        let _ = logger.send(Some(format!("HAS_TABS:[{}] -> converting to spaces\n",
+                                                         path.display())));
+                    }
+                    clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
+                } else {
+                    no_trailing_ws
+                };
+                if clean {
+                    let mut file = try!(File::create(path));
+                    try!(file.write_all(res_string.as_bytes()));
                 }
-                clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
-            } else {
-                no_trailing_ws
-            };
-            if clean {
-                let mut file = try!(File::create(path));
-                try!(file.write_all(res_string.as_bytes()));
             }
-        }
-    };
-    // only check content if we could read the file
-    Ok(check)
-}
+        };
+        // only check content if we could read the file
+        Ok(check)
+    }
 
 
 #[cfg (not(target_os = "windows"))]

@@ -7,16 +7,14 @@ use self::regex::Regex;
 
 // find out if any path component in the path fully matches the regex
 fn path_components_matches(to_ignore: &regex::Regex, path: &path::Path) -> bool {
-    path.components().any(|path_comp| {
-        match path_comp.as_os_str().to_str() {
-            Some(s) => {
-                match to_ignore.find(s) {
-                    Some((0, b)) => s.len() == b,
-                    _ => false,
-                }
+    path.components().any(|path_comp| match path_comp.as_os_str().to_str() {
+        Some(s) => {
+            match to_ignore.find(s) {
+                Some((0, b)) => s.len() == b,
+                _ => false,
             }
-            None => false,
         }
+        None => false,
     })
 }
 

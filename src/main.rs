@@ -12,38 +12,44 @@ use pbr::ProgressBar;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::cmp::max;
 use std::thread;
-use memmap::{Mmap, Protection};
+use std::fs::File;
+use std::io::prelude::*;
 use enforcer::config;
 use enforcer::search;
 use enforcer::check;
 use enforcer::clean;
-use std::fs;
 use std::path;
 use docopt::Docopt;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const USAGE: &'static str =
-"
+    "
 enforcer for code rules
 
 Usage:
   enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] \
-      [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>] \
-    [-a|--color]
-  enforcer (-h | --help)
+     [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>] [-a|--color]
+  enforcer (-h | \
+     --help)
   enforcer (-v | --version)
   enforcer (-s | --status)
 
 Options:
-  -g ENDINGS        use these file endings (e.g. \".h\").
+  -g ENDINGS        \
+     use these file endings (e.g. \".h\").
   -h --help         show this screen.
-  -v --version      show version.
+  -v --version      \
+     show version.
   -s --status       show configuration status.
-  -q --quiet        only count found entries.
+  -q --quiet        only count \
+     found entries.
   -c --clean        clean up trailing whitespaces and convert tabs to spaces.
-  -t --tabs         leave tabs alone (without that tabs are considered wrong).
-  -l --length=<n>   max line length [not checked if empty].
-  -j --threads=<N>  number of threads [default: 4].
+  \
+     -t --tabs         leave tabs alone (without that tabs are considered wrong).
+  -l \
+     --length=<n>   max line length [not checked if empty].
+  -j --threads=<N>  number of threads \
+     [default: 4].
   -a --color        use ANSI colored output
 ";
 #[derive(Debug, RustcDecodable)]
@@ -125,52 +131,35 @@ fn main() {
         use scoped_pool::Pool;
         let pool = Pool::new(thread_count);
 
-        pool.scoped(|scope| {
-            for path in paths {
-                let ch: SyncSender<Result<u8, std::io::Error>> = w_chan.clone();
-                let l_ch: SyncSender<Option<String>> = logging_tx.clone();
-                scope.execute(move || {
-                    if !check::is_dir(path.as_path()) {
-                        let p = path.clone();
-                        match Mmap::open_path(path, Protection::Read) {
-                            Ok(map) => {
-                                let buf = unsafe { map.as_slice() };
-                                let r = check::check_path(
-                                    p.as_path(),
-                                    buf,
-                                    clean_f,
-                                    !quiet_f,
-                                    max_line_length,
-                                    if tabs_f {
-                                        clean::TabStrategy::Tabify
-                                    } else {
-                                        clean::TabStrategy::Untabify
-                                    },
-                                    l_ch);
-                                ch.send(r).unwrap();
-                            }
-                            Err(e) => {
-                                let len = match fs::metadata(p.clone()) {
-                                    Ok(metadata) => metadata.len(),
-                                    Err(_) => panic!("mmap read error: {}", e),
-                                };
-                                if len == 0 {
-                                    ch.send(Ok(0)).unwrap();
-                                } else {
-                                    panic!("unexpected result for {:?}", p);
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+        pool.scoped(|scope| for path in paths {
+            let ch: SyncSender<Result<u8, std::io::Error>> = w_chan.clone();
+            let l_ch: SyncSender<Option<String>> = logging_tx.clone();
+            scope.execute(move || if !check::is_dir(path.as_path()) {
+                let p = path.clone();
+                let mut f = File::open(path).expect(format!("error reading file {:?}", p).as_str());
+                let mut buffer = Vec::new();
+                f.read_to_end(&mut buffer).expect(format!("error reading file {:?}", p).as_str());
+
+                let r = check::check_path(p.as_path(),
+                                          &buffer,
+                                          clean_f,
+                                          !quiet_f,
+                                          max_line_length,
+                                          if tabs_f {
+                                              clean::TabStrategy::Tabify
+                                          } else {
+                                              clean::TabStrategy::Untabify
+                                          },
+                                          l_ch);
+                ch.send(r).unwrap();
+            });
         });
     });
     for _ in 0..count {
         match r_chan.recv() {
             Ok(res) => {
                 match res {
-                    Ok(r)  => {
+                    Ok(r) => {
                         if (r & check::HAS_TABS) > 0 {
                             had_tabs += 1
                         }
@@ -204,16 +193,14 @@ fn main() {
     let _ = stop_logging_tx.send(None);
     if args.flag_quiet {
         let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines;
-        if color_f{
-            println!("{}: {}",
-                     check::bold("enforcer-error-count"),
-                     total_errors);
+        if color_f {
+            println!("{}: {}", check::bold("enforcer-error-count"), total_errors);
         } else {
             println!("enforcer-error-count: {}", total_errors);
         }
     }
     if had_tabs + had_illegals + had_trailing_ws + had_too_long_lines > 0 {
-        if color_f{
+        if color_f {
             println!("checked {} files {}",
                      checked_files,
                      check::bold("(enforcer_errors!)"));
@@ -234,7 +221,7 @@ fn main() {
         }
         std::process::exit(1);
     } else {
-        if color_f{
+        if color_f {
             println!("checked {} files {}",
                      checked_files,
                      check::green("(enforcer_clean!)"));

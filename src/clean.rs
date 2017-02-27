@@ -40,11 +40,9 @@ pub fn space_tabs_conversion<S>(content: S, s: TabStrategy) -> String
 {
     let converted: Vec<String> = content.into()
         .lines()
-        .map(|line| {
-            match s {
-                TabStrategy::Untabify => to_spaces(line.chars(), 4),
-                TabStrategy::Tabify => to_tabs(line.chars(), 4),
-            }
+        .map(|line| match s {
+            TabStrategy::Untabify => to_spaces(line.chars(), 4),
+            TabStrategy::Tabify => to_tabs(line.chars(), 4),
         })
         .collect();
     let mut res = converted.join("\n");
