@@ -27,23 +27,29 @@ fn check_content<'a>(input: &'a str,
         i += 1;
         if max_line_length.is_some() && line.len() > max_line_length.unwrap() {
             result |= LINE_TOO_LONG;
-            let _ = logger.send(Some(format!("{}, line {}: error: LINE_TOO_LONG\n", filename, i)));
         }
         if line.ends_with(' ') || line.ends_with('\t') {
             result |= TRAILING_SPACES;
-            let _ =
-                logger.send(Some(format!("{}, line {}: error: TRAILING_SPACES\n", filename, i)));
         }
         if s == clean::TabStrategy::Untabify && line.contains("\t") {
             result |= HAS_TABS;
-            let _ = logger.send(Some(format!("{}, line {}: error: HAS_TABS\n", filename, i)));
         }
         if line.as_bytes().iter().any(|x| *x > 127) {
-            if verbose {
-                let _ =
-                    logger.send(Some(format!("{}, line {}: error: non ASCII line\n", filename, i)));
-            }
             result |= HAS_ILLEGAL_CHARACTERS;
+        }
+        if verbose {
+            if (result & LINE_TOO_LONG) > 0 {
+                let _ = logger.send(Some(format!("{}, line {}: error: LINE_TOO_LONG\n", filename, i)));
+            }
+            if (result & TRAILING_SPACES) > 0 {
+                let _ = logger.send(Some(format!("{}, line {}: error: TRAILING_SPACES\n", filename, i)));
+            }
+            if (result & HAS_TABS) > 0 {
+                let _ = logger.send(Some(format!("{}, line {}: error: HAS_TABS\n", filename, i)));
+            }
+            if (result & HAS_ILLEGAL_CHARACTERS) > 0 {
+                let _ = logger.send(Some(format!("{}, line {}: error: non ASCII line\n", filename, i)));
+            }
         }
     }
     Ok(result)
