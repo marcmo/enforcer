@@ -2,6 +2,9 @@ extern crate rustc_serialize;
 extern crate docopt;
 extern crate toml;
 extern crate ansi_term;
+extern crate term_painter;
+extern crate glob;
+extern crate walkdir;
 #[macro_use]
 extern crate log;
 

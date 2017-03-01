@@ -1,21 +1,25 @@
 extern crate walkdir;
-extern crate regex;
+extern crate glob;
 
-use self::walkdir::{DirEntry, WalkDir, WalkDirIterator};
+use walkdir::{DirEntry, WalkDir, WalkDirIterator};
 use std::path;
-use self::regex::Regex;
+use glob::Pattern;
 
-// find out if any path component in the path fully matches the regex
-fn path_components_matches(to_ignore: &regex::Regex, path: &path::Path) -> bool {
-    path.components().any(|path_comp| match path_comp.as_os_str().to_str() {
-        Some(s) => {
-            match to_ignore.find(s) {
-                Some((0, b)) => s.len() == b,
-                _ => false,
-            }
+// find out if any path component in the path fully matches the pattern
+fn path_components_matches(pattern: &str, path: &path::Path) -> bool {
+    let haystack = path.to_str().expect(format!("problems with path: {:?}", &path).as_str());
+    let cleaned = if haystack.starts_with("./") {
+        &haystack[2..]
+    } else {
+        haystack
+    };
+    match Pattern::new(pattern) {
+        Ok(pat) => pat.matches(cleaned),
+        Err(e) => {
+            println!("problems with pattern: {:?}({})", pattern, e);
+            false
         }
-        None => false,
-    })
+    }
 }
 
 pub fn find_matches(start_dir: &path::Path,
@@ -23,16 +27,8 @@ pub fn find_matches(start_dir: &path::Path,
                     file_endings: &Vec<String>)
                     -> Vec<path::PathBuf> {
     let walker = WalkDir::new(start_dir).into_iter();
-    let ignore_regex = cfg_ignores.iter().fold(Vec::new(), |mut acc, ignore_glob| {
-        let r = ignore_glob.replace(".", "\\.")
-            .replace("*", ".*")
-            .replace("?", ".");
-        acc.push(Regex::new(&r).unwrap());
-        acc
-    });
-
     let to_ignore = |entry: &DirEntry| -> bool {
-        ignore_regex.iter().any(|to_ignore| path_components_matches(to_ignore, entry.path()))
+        cfg_ignores.iter().any(|to_ignore| path_components_matches(to_ignore, entry.path()))
     };
     let it = walker.filter_entry(|e| !to_ignore(e))
         .filter_map(|e| e.ok())
@@ -59,10 +55,8 @@ pub fn find_matches(start_dir: &path::Path,
 
 #[cfg(test)]
 mod tests {
-    extern crate regex;
     use super::find_matches;
     use super::path_components_matches;
-    use self::regex::Regex;
     use std::path;
 
     fn s(x: &str) -> String {
@@ -71,7 +65,7 @@ mod tests {
 
     #[test]
     fn test_find_all_matches() {
-        let ignores = vec![s(".git"), s(".bake"), s(".repo")];
+        let ignores = vec![s(".git"), s(".bake"), s("**/secret.cpp")];
         let endings = vec![s(".cpp")];
         let ms = find_matches(path::Path::new("./test/matching"), &ignores, &endings);
         assert_eq!(ms.len(), 2);
@@ -81,52 +75,61 @@ mod tests {
 
     #[test]
     fn test_ignore_some_paths() {
-        let ignores = vec![s("abc"), s(".bake"), s(".repo")];
+        let ignores = vec![s("**/abc/**"), s(".bake"), s("**/secret.cpp")];
         let endings = vec![s(".cpp")];
         let ms = find_matches(path::Path::new("./test/matching"), &ignores, &endings);
         assert_eq!(ms.len(), 1);
         assert!(ms.contains(&path::PathBuf::from("./test/matching/test0.cpp")));
+        assert!(!ms.contains(&path::PathBuf::from("./test/matching/secret.cpp")));
     }
 
     #[test]
     fn test_ignore_some_paths_with_globs() {
-        let ignores = vec![s("ab*")];
+        let ignores = vec![s("**/ab*/**")];
         let endings = vec![s(".cpp")];
         let ms = find_matches(path::Path::new("./test/matching"), &ignores, &endings);
-        assert_eq!(ms.len(), 1);
+        assert_eq!(ms.len(), 2);
         assert!(ms.contains(&path::PathBuf::from("./test/matching/test0.cpp")));
+        assert!(ms.contains(&path::PathBuf::from("./test/matching/secret.cpp")));
     }
     #[test]
     fn test_ignore_some_paths_with_globs2() {
-        let ignores = vec![s("a?c")];
+        let ignores = vec![s("**/a?c/**")];
         let endings = vec![s(".cpp")];
         let ms = find_matches(path::Path::new("./test/matching"), &ignores, &endings);
-        assert_eq!(ms.len(), 1);
+        assert_eq!(ms.len(), 2);
         assert!(ms.contains(&path::PathBuf::from("./test/matching/test0.cpp")));
+        assert!(ms.contains(&path::PathBuf::from("./test/matching/secret.cpp")));
+    }
+    #[test]
+    fn test_path_component_matches_with_globs() {
+        let path = path::Path::new("./test/abc/me.cpp");
+        assert!(path_components_matches("**/a?c/**", &path));
+    }
+    #[test]
+    fn test_path_component_matches_multiple_path_elements() {
+        let path = path::Path::new("./test/abc/me.cpp");
+        assert!(path_components_matches("**/test/abc/**", &path));
     }
     #[test]
     fn test_path_component_matches_full_match() {
-        let rx = Regex::new("a.c").unwrap();
         let path = path::Path::new("./test/abc/me.cpp");
-        assert!(path_components_matches(&rx, &path));
+        assert!(path_components_matches("**/a?c/**", &path));
     }
     #[test]
     fn test_path_component_matches_partial_match() {
-        let rx = Regex::new("a.c").unwrap();
         let path = path::Path::new("./test/aabcd/me.cpp");
-        assert!(!path_components_matches(&rx, &path));
+        assert!(!path_components_matches("**/a?c/**", &path));
     }
     #[test]
     fn test_path_component_matches_at_begining() {
-        let rx = Regex::new("a.*").unwrap();
         let path = path::Path::new("./test/abc/me.cpp");
-        assert!(path_components_matches(&rx, &path));
+        assert!(path_components_matches("**/a*/**", &path));
     }
     #[test]
     fn test_path_component_matches_at_end() {
-        let rx = Regex::new(".*bc").unwrap();
         let path = path::Path::new("./test/abc/me.cpp");
-        assert!(path_components_matches(&rx, &path));
+        assert!(path_components_matches("**/*bc/**", &path));
     }
 
 }

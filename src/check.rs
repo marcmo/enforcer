@@ -5,6 +5,11 @@ use std::fs::File;
 use std::fs::metadata;
 use std::io::prelude::*;
 use ansi_term;
+
+// use term_painter::{ToStyle, Color};
+// use term_painter::Color::*;
+// use term_painter::Attr::*;
+
 use std::sync::mpsc::SyncSender;
 use clean;
 
@@ -25,9 +30,9 @@ fn check_content<'a>(input: &'a str,
     let mut i: u32 = 0;
     for line in input.lines() {
         i += 1;
-        if max_line_length.is_some() && line.len() > max_line_length.unwrap() {
+        max_line_length.map(|max_len| if line.len() > max_len {
             result |= LINE_TOO_LONG;
-        }
+        });
         if line.ends_with(' ') || line.ends_with('\t') {
             result |= TRAILING_SPACES;
         }
@@ -169,6 +174,9 @@ pub fn yellow(s: &str) -> ansi_term::ANSIString {
 pub fn green(s: &str) -> ansi_term::ANSIString {
     ansi_term::Style::new().paint(s)
 }
+// pub fn green2(s: &str) -> ansi_term::ANSIString {
+//     Color::Red.bold().paint(s)
+// }
 #[cfg (target_os = "windows")]
 pub fn bold(s: &str) -> ansi_term::ANSIString {
     ansi_term::Style::new().paint(s)

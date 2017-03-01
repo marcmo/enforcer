@@ -1,11 +1,11 @@
 extern crate enforcer;
-extern crate memmap;
 extern crate rustc_serialize;
 extern crate docopt;
 extern crate scoped_pool;
 extern crate log;
 extern crate env_logger;
 extern crate pbr;
+extern crate term_painter;
 extern crate ansi_term;
 
 use pbr::ProgressBar;
@@ -29,27 +29,20 @@ enforcer for code rules
 Usage:
   enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] \
      [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>] [-a|--color]
-  enforcer (-h | \
-     --help)
+  enforcer (-h | --help)
   enforcer (-v | --version)
   enforcer (-s | --status)
 
 Options:
-  -g ENDINGS        \
-     use these file endings (e.g. \".h\").
+  -g ENDINGS        use these file endings (e.g. \".h\").
   -h --help         show this screen.
-  -v --version      \
-     show version.
+  -v --version      show version.
   -s --status       show configuration status.
-  -q --quiet        only count \
-     found entries.
+  -q --quiet        only count found entries.
   -c --clean        clean up trailing whitespaces and convert tabs to spaces.
-  \
-     -t --tabs         leave tabs alone (without that tabs are considered wrong).
-  -l \
-     --length=<n>   max line length [not checked if empty].
-  -j --threads=<N>  number of threads \
-     [default: 4].
+  -t --tabs         leave tabs alone (without that tabs are considered wrong).
+  -l --length=<n>   max line length [not checked if empty].
+  -j --threads=<N>  number of threads [default: 4].
   -a --color        use ANSI colored output
 ";
 #[derive(Debug, RustcDecodable)]
@@ -151,7 +144,7 @@ fn main() {
                                               clean::TabStrategy::Untabify
                                           },
                                           l_ch);
-                ch.send(r).unwrap();
+                ch.send(r).expect("send result with SyncSender");
             });
         });
     });
