@@ -1,5 +1,4 @@
 extern crate rustc_serialize;
-extern crate docopt;
 extern crate toml;
 extern crate ansi_term;
 extern crate term_painter;

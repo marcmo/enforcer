@@ -1,16 +1,24 @@
 extern crate enforcer;
 extern crate rustc_serialize;
-extern crate docopt;
 extern crate scoped_pool;
 extern crate log;
 extern crate env_logger;
 extern crate pbr;
 extern crate term_painter;
 extern crate ansi_term;
+#[macro_use]
+extern crate clap;
+extern crate num_cpus;
 
+use args::Args;
+mod args;
+mod app;
+
+use std::num;
+use std::process;
+use std::sync::Arc;
 use pbr::ProgressBar;
 use std::sync::mpsc::{sync_channel, SyncSender};
-use std::cmp::max;
 use std::thread;
 use std::fs::File;
 use std::io::prelude::*;
@@ -18,68 +26,33 @@ use enforcer::config;
 use enforcer::search;
 use enforcer::check;
 use enforcer::clean;
-use std::path;
-use docopt::Docopt;
-
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-const USAGE: &'static str =
-    "
-enforcer for code rules
-
-Usage:
-  enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] \
-     [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>] [-a|--color]
-  enforcer (-h | --help)
-  enforcer (-v | --version)
-  enforcer (-s | --status)
-
-Options:
-  -g ENDINGS        use these file endings (e.g. \".h\").
-  -h --help         show this screen.
-  -v --version      show version.
-  -s --status       show configuration status.
-  -q --quiet        only count found entries.
-  -c --clean        clean up trailing whitespaces and convert tabs to spaces.
-  -t --tabs         leave tabs alone (without that tabs are considered wrong).
-  -l --length=<n>   max line length [not checked if empty].
-  -j --threads=<N>  number of threads [default: 4].
-  -a --color        use ANSI colored output
-";
-#[derive(Debug, RustcDecodable)]
-struct Args {
-    flag_clean: bool,
-    flag_g: Vec<String>,
-    flag_version: bool,
-    flag_status: bool,
-    flag_quiet: bool,
-    flag_tabs: bool,
-    flag_length: usize,
-    flag_threads: usize,
-    flag_color: bool,
-}
 
 #[allow(dead_code)]
 fn main() {
     env_logger::init().unwrap();
 
-    let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.decode())
-        .unwrap_or_else(|e| e.exit());
-    if args.flag_version {
-        println!("  Version: {}", VERSION);
-        std::process::exit(0);
+    match Args::parse().map(Arc::new).and_then(run) {
+        Ok(0) => process::exit(0),
+        Ok(_) => process::exit(1),
+        Err(err) => {
+            println!("{}", err);
+            process::exit(1);
+        }
     }
+}
+
+fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
     let enforcer_cfg = config::get_cfg();
-    if args.flag_status {
+    if args.status() {
         println!("  using this config: {:?}", enforcer_cfg);
         std::process::exit(0);
     }
-    let cfg_ignores: Vec<String> = enforcer_cfg.ignore;
+    let cfg_ignores: &Vec<String> = &enforcer_cfg.ignore;
     let cfg_endings = enforcer_cfg.endings;
-    let file_endings = if args.flag_g.len() > 0 {
-        args.flag_g
+    let file_endings = if args.endings().len() > 0 {
+        args.endings()
     } else {
-        cfg_endings
+        &cfg_endings
     };
 
     let mut checked_files: u32 = 0;
@@ -87,17 +60,15 @@ fn main() {
     let mut had_trailing_ws: u32 = 0;
     let mut had_illegals: u32 = 0;
     let mut had_too_long_lines: u32 = 0;
-    let clean_f = args.flag_clean;
-    let quiet_f = args.flag_quiet;
-    let tabs_f = args.flag_tabs;
-    let thread_count = max(args.flag_threads, 1);
-    let color_f = args.flag_color;
-    let max_line_length = if args.flag_length > 0 {
-        Some(args.flag_length)
-    } else {
-        None
-    };
-    let paths = search::find_matches(path::Path::new("."), &cfg_ignores, &file_endings);
+    let clean_f = args.clean();
+    let quiet_f = args.quiet();
+    let tabs_f = args.tabs();
+    let thread_count = args.threads();
+    let color_f = args.color();
+    let max_line_length = args.line_length();
+    let start_dir = args.path();
+    println!("args:{:?}", args);
+    let paths = search::find_matches(start_dir.as_path(), cfg_ignores, file_endings);
     let count: u64 = paths.len() as u64;
     let mut pb = ProgressBar::new(count);
     // logger thread
@@ -134,16 +105,16 @@ fn main() {
                 f.read_to_end(&mut buffer).expect(format!("error reading file {:?}", p).as_str());
 
                 let r = check::check_path(p.as_path(),
-                                          &buffer,
-                                          clean_f,
-                                          !quiet_f,
-                                          max_line_length,
-                                          if tabs_f {
-                                              clean::TabStrategy::Tabify
-                                          } else {
-                                              clean::TabStrategy::Untabify
-                                          },
-                                          l_ch);
+                &buffer,
+                clean_f,
+                !quiet_f,
+                max_line_length,
+                if tabs_f {
+                    clean::TabStrategy::Tabify
+                } else {
+                    clean::TabStrategy::Untabify
+                },
+                l_ch);
                 ch.send(r).expect("send result with SyncSender");
             });
         });
@@ -184,7 +155,7 @@ fn main() {
         pb.finish();
     };
     let _ = stop_logging_tx.send(None);
-    if args.flag_quiet {
+    if quiet_f {
         let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines;
         if color_f {
             println!("{}: {}", check::bold("enforcer-error-count"), total_errors);
@@ -212,7 +183,7 @@ fn main() {
         if had_too_long_lines > 0 {
             println!("   [with TOO LONG LINES:{}]", had_too_long_lines)
         }
-        std::process::exit(1);
+        Ok(1)
     } else {
         if color_f {
             println!("checked {} files {}",
@@ -221,8 +192,6 @@ fn main() {
         } else {
             println!("checked {} files (enforcer_clean!)", checked_files);
         }
-
-
-        std::process::exit(0);
+        Ok(0)
     }
 }

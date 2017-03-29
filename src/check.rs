@@ -6,9 +6,8 @@ use std::fs::metadata;
 use std::io::prelude::*;
 use ansi_term;
 
-// use term_painter::{ToStyle, Color};
-// use term_painter::Color::*;
-// use term_painter::Attr::*;
+use term_painter::{ToStyle, Color, Painted};
+use term_painter::Attr::*;
 
 use std::sync::mpsc::SyncSender;
 use clean;
@@ -155,12 +154,12 @@ pub fn yellow(s: &str) -> ansi_term::ANSIString {
     ansi_term::Colour::Yellow.bold().paint(s)
 }
 #[cfg (not(target_os = "windows"))]
-pub fn green(s: &str) -> ansi_term::ANSIString {
-    ansi_term::Colour::Green.bold().paint(s)
+pub fn green(s: &str) -> Painted<&str> {
+    Color::Green.paint(s)
 }
 #[cfg (not(target_os = "windows"))]
-pub fn bold(s: &str) -> ansi_term::ANSIString {
-    ansi_term::Style::new().bold().paint(s)
+pub fn bold(s: &str) -> Painted<&str> {
+    Bold.paint(s)
 }
 #[cfg (target_os = "windows")]
 pub fn red(s: &str) -> ansi_term::ANSIString {
@@ -174,9 +173,6 @@ pub fn yellow(s: &str) -> ansi_term::ANSIString {
 pub fn green(s: &str) -> ansi_term::ANSIString {
     ansi_term::Style::new().paint(s)
 }
-// pub fn green2(s: &str) -> ansi_term::ANSIString {
-//     Color::Red.bold().paint(s)
-// }
 #[cfg (target_os = "windows")]
 pub fn bold(s: &str) -> ansi_term::ANSIString {
     ansi_term::Style::new().paint(s)

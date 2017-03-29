@@ -24,7 +24,7 @@ fn path_components_matches(pattern: &str, path: &path::Path) -> bool {
 
 pub fn find_matches(start_dir: &path::Path,
                     cfg_ignores: &Vec<String>,
-                    file_endings: &Vec<String>)
+                    file_endings: &[String])
                     -> Vec<path::PathBuf> {
     let walker = WalkDir::new(start_dir).into_iter();
     let to_ignore = |entry: &DirEntry| -> bool {
