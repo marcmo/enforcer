@@ -6,12 +6,11 @@ use std::process;
 use clap;
 use app;
 use num_cpus;
+use env_logger;
+use log;
 
 use std::path::{Path, PathBuf};
 use std::result::Result;
-
-// use log;
-
 
 /// `Args` are transformed/normalized from `ArgMatches`.
 #[derive(Debug)]
@@ -19,6 +18,7 @@ pub struct Args {
     path: PathBuf,
     endings: Vec<String>,
     clean: bool,
+    config_file: PathBuf,
     line_length: Option<usize>,
     color: bool,
     threads: usize,
@@ -46,6 +46,15 @@ impl Args {
             println!("enforcer {}", crate_version!());
             process::exit(0);
         }
+        let mut logb = env_logger::LogBuilder::new();
+        if matches.is_present("debug") {
+            logb.filter(None, log::LogLevelFilter::Debug);
+        } else {
+            logb.filter(None, log::LogLevelFilter::Warn);
+        }
+        if let Err(err) = logb.init() {
+            println!("failed to initialize logger: {}", err);
+        }
         ArgMatches(matches).to_args()
     }
 
@@ -65,6 +74,9 @@ impl Args {
     }
     pub fn tabs(&self) -> bool {
         self.tabs
+    }
+    pub fn config_file(&self) -> &PathBuf {
+        &self.config_file
     }
 
     /// Returns true if and only if enforcer should color its output.
@@ -92,7 +104,9 @@ struct ArgMatches<'a>(clap::ArgMatches<'a>);
 
 impl<'a> ops::Deref for ArgMatches<'a> {
     type Target = clap::ArgMatches<'a>;
-    fn deref(&self) -> &clap::ArgMatches<'a> { &self.0 }
+    fn deref(&self) -> &clap::ArgMatches<'a> {
+        &self.0
+    }
 }
 
 impl<'a> ArgMatches<'a> {
@@ -101,11 +115,13 @@ impl<'a> ArgMatches<'a> {
     fn to_args(&self) -> Result<Args, num::ParseIntError> {
         let path = self.path();
         let endings = self.endings();
+        let config = self.config_path();
         let quiet = self.is_present("quiet");
         let args = Args {
             path: path,
             endings: endings,
             clean: self.is_present("clean"),
+            config_file: config,
             line_length: try!(self.usize_of("L")),
             color: self.is_present("color"),
             quiet: quiet,
@@ -125,11 +141,19 @@ impl<'a> ArgMatches<'a> {
         endings
     }
 
-    /// Return all file path that enforcer should search.
+    /// Return file path that enforcer should search.
     fn path(&self) -> PathBuf {
         match self.value_of_os("path") {
             None => self.default_path(),
-            Some(val) => Path::new(val).to_path_buf()
+            Some(val) => Path::new(val).to_path_buf(),
+        }
+    }
+
+    /// Return path to config file.
+    fn config_path(&self) -> PathBuf {
+        match self.value_of_os("config-path") {
+            None => Path::new("./.enforcer").to_path_buf(),
+            Some(val) => Path::new(val).to_path_buf(),
         }
     }
 
@@ -151,11 +175,9 @@ impl<'a> ArgMatches<'a> {
     /// Safely reads an arg value with the given name, and if it's present,
     /// tries to parse it as a usize value.
     fn usize_of(&self, name: &str) -> Result<Option<usize>, num::ParseIntError> {
-        println!("usize_of: {}, {:?}", name, self.0.value_of_lossy(name));
         match self.0.value_of_lossy(name) {
             None => Ok(None),
             Some(v) => v.parse().map(Some).map_err(From::from),
         }
     }
 }
-

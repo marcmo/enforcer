@@ -1,2 +1,2 @@
-ignore = [".git", ".repo"]
+ignore = ["**/.git", "**/.repo"]
 endings = [".c", ".cpp", ".h"]

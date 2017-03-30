@@ -4,6 +4,7 @@ use toml;
 use rustc_serialize::Decodable;
 use std::fs;
 use std::io::Read;
+use std::path::Path;
 
 #[derive(Debug, RustcDecodable, PartialEq)]
 pub struct EnforcerCfg {
@@ -15,19 +16,25 @@ pub fn s(x: &str) -> String {
     x.to_string()
 }
 
-pub fn get_cfg() -> EnforcerCfg {
-    fn read_enforcer_config() -> std::io::Result<EnforcerCfg> {
-        let mut cfg_file = try!(fs::File::open(".enforcer"));
+pub fn get_cfg(config_file: &Path) -> EnforcerCfg {
+    let read_enforcer_config = |cnfg| -> std::io::Result<EnforcerCfg> {
+        let mut cfg_file = try!(fs::File::open(cnfg));
         let mut buffer = String::new();
         try!(cfg_file.read_to_string(&mut buffer));
         parse_config(&buffer[..])
+    };
+    match read_enforcer_config(config_file) {
+        Ok(c) => c,
+        Err(e) => {
+            println!("could not read provided config: {}", e.to_string());
+            default_cfg()
+        },
     }
-    read_enforcer_config().unwrap_or(default_cfg())
 }
 
 fn default_cfg() -> EnforcerCfg {
     EnforcerCfg {
-        ignore: vec![s(".git"), s(".bake"), s(".repo")],
+        ignore: vec![s("**/.git"), s("**/.bake"), s("**/.repo")],
         endings: vec![s(".c"), s(".cpp"), s(".h")],
     }
 }
@@ -66,7 +73,7 @@ mod tests {
         let cfg = parse_config(c).unwrap();
         assert_eq!(cfg.ignore.len(), 2);
         let expected = EnforcerCfg {
-            ignore: vec![s(".git"), s(".repo")],
+            ignore: vec![s("**/.git"), s("**/.repo")],
             endings: vec![s(".c"), s(".cpp"), s(".h")],
         };
         assert_eq!(expected.ignore, cfg.ignore);

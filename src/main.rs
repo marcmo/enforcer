@@ -1,6 +1,7 @@
 extern crate enforcer;
 extern crate rustc_serialize;
 extern crate scoped_pool;
+#[macro_use]
 extern crate log;
 extern crate env_logger;
 extern crate pbr;
@@ -27,22 +28,28 @@ use enforcer::search;
 use enforcer::check;
 use enforcer::clean;
 
+macro_rules! eprintln {
+    ($($tt:tt)*) => {{
+        use std::io::Write;
+        let _ = writeln!(&mut ::std::io::stderr(), $($tt)*);
+    }}
+}
+
 #[allow(dead_code)]
 fn main() {
-    env_logger::init().unwrap();
 
     match Args::parse().map(Arc::new).and_then(run) {
         Ok(0) => process::exit(0),
         Ok(_) => process::exit(1),
         Err(err) => {
-            println!("{}", err);
+            eprintln!("{}", err);
             process::exit(1);
         }
     }
 }
 
 fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
-    let enforcer_cfg = config::get_cfg();
+    let enforcer_cfg = config::get_cfg(args.config_file().as_path());
     if args.status() {
         println!("  using this config: {:?}", enforcer_cfg);
         std::process::exit(0);
@@ -67,7 +74,7 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
     let color_f = args.color();
     let max_line_length = args.line_length();
     let start_dir = args.path();
-    println!("args:{:?}", args);
+    debug!("args:{:?}", args);
     let paths = search::find_matches(start_dir.as_path(), cfg_ignores, file_endings);
     let count: u64 = paths.len() as u64;
     let mut pb = ProgressBar::new(count);
@@ -138,7 +145,7 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
                         }
                     }
                     Err(e) => {
-                        println!("error occured here: {}", e);
+                        error!("error occured here: {}", e);
                     }
                 }
             }

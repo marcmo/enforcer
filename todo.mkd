@@ -1,0 +1,7 @@
+TODO
+
+* automatically rewrite old config (from `.git` => `**/.git`)
+
+DONE
+
+* allow to specify path to config file

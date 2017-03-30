@@ -24,7 +24,6 @@ fn check_content<'a>(input: &'a str,
                      s: clean::TabStrategy,
                      logger: SyncSender<Option<String>>)
 -> io::Result<u8> {
-    debug!("check content of {}", filename);
     let mut result = 0;
     let mut i: u32 = 0;
     for line in input.lines() {

@@ -82,14 +82,12 @@ mod tests {
     fn test_clean_trailing_whitespace() {
         let content = "1 \n2";
         let cleaned = remove_trailing_whitespaces(content);
-        println!("{:?}", cleaned);
         assert!(cleaned.eq("1\n2"));
     }
     #[test]
     fn test_clean_trailing_tabs() {
         let content = "1\t\n2";
         let cleaned = remove_trailing_whitespaces(content);
-        println!("{:?}", cleaned);
         assert!(cleaned.eq("1\n2"));
     }
     #[test]

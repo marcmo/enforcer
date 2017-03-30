@@ -9,24 +9,28 @@ check source code for certain metrics (intended as a pre-commit hook)
 
 ## Usage
 
-    enforcer for code rules
+    Use -h for short descriptions.
 
-    Usage:
-      enforcer [-g ENDINGS...] [-c|--clean] [-q|--quiet] [-t|--tabs] [-l <n>|--length=<n>] [-j <N>|--threads=<N>]
-      enforcer (-h | --help)
-      enforcer (-v | --version)
-      enforcer (-s | --status)
+    USAGE:
+        enforcer [OPTIONS] [-g ENDINGS...] <path>
+        enforcer [-g ENDINGS...] [-q | --quiet] [-j <NUM> | --threads=<NUM>] [-a | --color] <path>
+        enforcer [-c | --clean] <path>
+        enforcer [-l <MAX> | --length=<MAX>] <path>
 
-    Options:
-      -g ENDINGS        use these file endings (e.g. ".h").
-      -h --help         show this screen.
-      -v --version      show version.
-      -s --status       show configuration status.
-      -q --quiet        only count found entries.
-      -c --clean        clean up trailing whitespaces and convert tabs to spaces.
-      -t --tabs         leave tabs alone (without that tabs are considered wrong).
-      -l --length=<n>   max line length [not checked if empty].
-      -j --threads=<N>  number of threads [default: 4].
+    ARGS:
+        <path>...
+
+    OPTIONS:
+        -l, --length <MAX>     max line length [not checked if empty]
+        -j, --threads <NUM>    number of threads [default: 4]
+        -c, --clean            clean up trailing whitespaces and convert tabs to spaces
+        -a, --color            use ANSI colored output
+        -g <ENDINGS>           use these file endings (e.g. ".cpp",".h")
+        -h, --help             Prints help information
+        -q, --quiet            only count found entries
+        -s, --status           show configuration status
+        -t, --tabs             leave tabs alone (without that tabs are considered wrong)
+        -V, --version          Prints version information
 
 ## Example config file (name .enforcer)
 
