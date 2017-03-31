@@ -18,7 +18,7 @@ pub struct Args {
     path: PathBuf,
     endings: Vec<String>,
     clean: bool,
-    config_file: PathBuf,
+    config_file: Option<PathBuf>,
     line_length: Option<usize>,
     color: bool,
     threads: usize,
@@ -75,7 +75,7 @@ impl Args {
     pub fn tabs(&self) -> bool {
         self.tabs
     }
-    pub fn config_file(&self) -> &PathBuf {
+    pub fn config_file(&self) -> &Option<PathBuf> {
         &self.config_file
     }
 
@@ -150,10 +150,10 @@ impl<'a> ArgMatches<'a> {
     }
 
     /// Return path to config file.
-    fn config_path(&self) -> PathBuf {
+    fn config_path(&self) -> Option<PathBuf> {
         match self.value_of_os("config-path") {
-            None => Path::new("./.enforcer").to_path_buf(),
-            Some(val) => Path::new(val).to_path_buf(),
+            None => None,
+            Some(val) => Some(Path::new(val).to_path_buf()),
         }
     }
 

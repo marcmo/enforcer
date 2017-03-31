@@ -49,7 +49,7 @@ fn main() {
 }
 
 fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
-    let enforcer_cfg = config::get_cfg(args.config_file().as_path());
+    let enforcer_cfg = config::get_cfg(args.config_file());
     if args.status() {
         println!("  using this config: {:?}", enforcer_cfg);
         std::process::exit(0);

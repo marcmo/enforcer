@@ -4,7 +4,10 @@ use toml;
 use rustc_serialize::Decodable;
 use std::fs;
 use std::io::Read;
-use std::path::Path;
+use std::path::PathBuf;
+use std::io::{Error, ErrorKind};
+
+const DEFAULT_CFG_FILE: &'static str = "./.enforcer";
 
 #[derive(Debug, RustcDecodable, PartialEq)]
 pub struct EnforcerCfg {
@@ -16,19 +19,37 @@ pub fn s(x: &str) -> String {
     x.to_string()
 }
 
-pub fn get_cfg(config_file: &Path) -> EnforcerCfg {
-    let read_enforcer_config = |cnfg| -> std::io::Result<EnforcerCfg> {
-        let mut cfg_file = try!(fs::File::open(cnfg));
+fn load_default_cfg_file() -> io::Result<fs::File> {
+    let p = PathBuf::from(DEFAULT_CFG_FILE);
+    if !p.as_path().exists() {
+        println!("default config file {:?} does not exist!", DEFAULT_CFG_FILE);
+        Err(Error::new(ErrorKind::NotFound, "default config file missing"))
+    } else {
+        fs::File::open(p)
+    }
+}
+
+pub fn get_cfg(config_file: &Option<PathBuf>) -> EnforcerCfg {
+    let read_enforcer_config = |cnfg: &Option<PathBuf>| -> std::io::Result<EnforcerCfg> {
+        let mut cfg_file = match *cnfg {
+            Some(ref p) => {
+                if !p.as_path().exists() {
+                    println!("provided file {:?} does not exist!", p);
+                }
+                try!(fs::File::open(p))
+            }
+            None => try!(load_default_cfg_file()),
+        };
         let mut buffer = String::new();
         try!(cfg_file.read_to_string(&mut buffer));
         parse_config(&buffer[..])
     };
     match read_enforcer_config(config_file) {
         Ok(c) => c,
-        Err(e) => {
-            println!("could not read provided config: {}", e.to_string());
+        _ => {
+            println!("taking default configuration: {:?}", default_cfg());
             default_cfg()
-        },
+        }
     }
 }
 

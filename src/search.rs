@@ -131,5 +131,10 @@ mod tests {
         let path = path::Path::new("./test/abc/me.cpp");
         assert!(path_components_matches("**/*bc/**", &path));
     }
+    #[test]
+    fn test_leading_dot_files() {
+        let path = path::Path::new("./test/abc/.git");
+        assert!(path_components_matches("**/abc/*", &path));
+    }
 
 }

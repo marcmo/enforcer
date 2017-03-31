@@ -60,7 +60,7 @@ pub fn app() -> App<'static, 'static> {
             .short("s")
             .long("status")
             .value_name("FILE")
-            .help("show configuration status")
+            .help("show configuration that is used")
             .takes_value(false))
         .arg(Arg::with_name("quiet")
             .short("q")
