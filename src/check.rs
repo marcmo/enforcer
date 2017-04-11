@@ -72,7 +72,7 @@ pub fn is_dir(path: &Path) -> bool {
 fn report_offending_line(path: &Path, logger: SyncSender<Option<String>>) -> std::io::Result<()> {
     use std::io::BufReader;
     let mut i: u32 = 1;
-    let f = try!(File::open(path));
+    let f = File::open(path)?;
     let file = BufReader::new(f);
     for line in file.lines() {
         match line.ok() {
@@ -107,12 +107,12 @@ pub fn check_path(path: &Path,
             }
             Ok(buffer) => {
                 if check == 0 {
-                    check = try!(check_content(&buffer,
-                                               path.to_str().expect("not available"),
-                                               verbose,
-                                               max_line_length,
-                                               s,
-                                               logger.clone()));
+                    check = check_content(&buffer,
+                                          path.to_str().expect("not available"),
+                                          verbose,
+                                          max_line_length,
+                                          s,
+                                          logger.clone())?;
                 }
                 let no_trailing_ws = if (check & TRAILING_SPACES) > 0 && clean {
                     if verbose {
@@ -134,8 +134,8 @@ pub fn check_path(path: &Path,
                     no_trailing_ws
                 };
                 if clean {
-                    let mut file = try!(File::create(path));
-                    try!(file.write_all(res_string.as_bytes()));
+                    let mut file = File::create(path)?;
+                    file.write_all(res_string.as_bytes())?;
                 }
             }
         };

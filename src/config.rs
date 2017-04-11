@@ -6,6 +6,7 @@ use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 use std::io::{Error, ErrorKind};
+use regex::Regex;
 
 const DEFAULT_CFG_FILE: &'static str = "./.enforcer";
 
@@ -36,12 +37,12 @@ pub fn get_cfg(config_file: &Option<PathBuf>) -> EnforcerCfg {
                 if !p.as_path().exists() {
                     println!("provided file {:?} does not exist!", p);
                 }
-                try!(fs::File::open(p))
+                fs::File::open(p)?
             }
-            None => try!(load_default_cfg_file()),
+            None => load_default_cfg_file()?,
         };
         let mut buffer = String::new();
-        try!(cfg_file.read_to_string(&mut buffer));
+        cfg_file.read_to_string(&mut buffer)?;
         parse_config(&buffer[..])
     };
     match read_enforcer_config(config_file) {
@@ -57,6 +58,32 @@ fn default_cfg() -> EnforcerCfg {
     EnforcerCfg {
         ignore: vec![s("**/.git"), s("**/.bake"), s("**/.repo")],
         endings: vec![s(".c"), s(".cpp"), s(".h")],
+    }
+}
+
+fn fix_config(cfg: &EnforcerCfg) -> EnforcerCfg {
+    EnforcerCfg {
+        ignore: cfg.ignore.iter().map(|i| suggestion(i)).collect::<Vec<String>>(),
+        endings: cfg.endings.clone(),
+    }
+}
+
+fn full_match(r: &Regex, s: &str) -> bool {
+    if let Some(mat) = r.find(s) {
+        mat.start() == 0 && mat.end() == s.len()
+    } else {
+        false
+    }
+}
+fn suggestion(s: &str) -> String {
+    let full_component = Regex::new(r"([a-zA-Z_\-]+\*?)").expect("valid regex");
+    let ending = Regex::new(r"(\*?\.[a-zA-Z_\-]+\*?)").expect("valid regex");
+    if full_match(&full_component, s) {
+        String::from("**/") + s + "/**"
+    } else if full_match(&ending, s) {
+        String::from("**/") + s
+    } else {
+        s.to_string()
     }
 }
 
@@ -78,7 +105,17 @@ pub fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
         let mut decoder = toml::Decoder::new(toml::Value::Table(toml));
         EnforcerCfg::decode(&mut decoder)
             .ok()
-            .map_or(Err(default_err()), |config| Ok(config))
+            .map_or(Err(default_err()), |config| {
+                let suggested = fix_config(&config);
+                if suggested.ignore != config.ignore {
+                    println!("old style config found. we will assume this:\n{:?}\nconsider \
+                              changing it! (see http://www.globtester.com/ for reference)",
+                             suggested);
+                    Ok(suggested)
+                } else {
+                    Ok(config)
+                }
+            })
     })
 }
 
@@ -87,6 +124,7 @@ mod tests {
     use super::s;
     use super::EnforcerCfg;
     use super::parse_config;
+    use super::suggestion;
 
     #[test]
     fn test_load_simple_config() {
@@ -105,5 +143,16 @@ mod tests {
     fn test_load_broken_config() {
         let c = include_str!("../samples/.enforcer_broken");
         parse_config(c).unwrap();
+    }
+
+    #[test]
+    fn test_matches() {
+        assert_eq!("**/abc/**".to_string(), suggestion("abc"));
+        assert_eq!("**/.repo".to_string(), suggestion(".repo"));
+        assert_eq!("**/build_*/**".to_string(), suggestion("build_*"));
+        assert_eq!("**/*.o".to_string(), suggestion("*.o"));
+        assert_eq!("**/*.dld".to_string(), suggestion("*.dld"));
+        assert_eq!("**/*.s".to_string(), suggestion("*.s"));
+        assert_eq!("**/autosarOs/**".to_string(), suggestion("autosarOs"));
     }
 }

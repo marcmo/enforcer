@@ -122,10 +122,10 @@ impl<'a> ArgMatches<'a> {
             endings: endings,
             clean: self.is_present("clean"),
             config_file: config,
-            line_length: try!(self.usize_of("L")),
+            line_length: self.usize_of("L")?,
             color: self.is_present("color"),
             quiet: quiet,
-            threads: try!(self.threads()),
+            threads: self.threads()?,
             status: self.is_present("status"),
             tabs: self.is_present("tabs"),
         };
@@ -164,7 +164,7 @@ impl<'a> ArgMatches<'a> {
 
     /// Returns the approximate number of threads that enforcer should use.
     fn threads(&self) -> Result<usize, num::ParseIntError> {
-        let threads = try!(self.usize_of("N")).unwrap_or(0);
+        let threads = self.usize_of("N")?.unwrap_or(0);
         Ok(if threads == 0 {
             cmp::min(12, num_cpus::get())
         } else {

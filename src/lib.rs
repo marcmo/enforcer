@@ -4,6 +4,7 @@ extern crate ansi_term;
 extern crate term_painter;
 extern crate glob;
 extern crate walkdir;
+extern crate regex;
 #[macro_use]
 extern crate log;
 

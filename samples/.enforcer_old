@@ -1,0 +1,13 @@
+ignore = [
+  ".git",
+  ".rim",
+  ".bake",
+  "build_*",
+  "*.o",
+  "*.s",
+  "cal",
+  ".cproject",
+  ".project",
+  "securitySoftware",
+  "diabCompiler*"]
+endings = [".h", ".cpp", ".c", ".meta"]
