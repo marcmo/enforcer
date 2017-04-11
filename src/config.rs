@@ -76,8 +76,8 @@ fn full_match(r: &Regex, s: &str) -> bool {
     }
 }
 fn suggestion(s: &str) -> String {
-    let full_component = Regex::new(r"([a-zA-Z_\-]+\*?)").expect("valid regex");
-    let ending = Regex::new(r"(\*?\.[a-zA-Z_\-]+\*?)").expect("valid regex");
+    let full_component = Regex::new(r"([a-zA-Z_\-\d]+\*?)").expect("valid regex");
+    let ending = Regex::new(r"(\*?\.[a-zA-Z_\-\d]+\*?)").expect("valid regex");
     if full_match(&full_component, s) {
         String::from("**/") + s + "/**"
     } else if full_match(&ending, s) {
@@ -149,10 +149,12 @@ mod tests {
     fn test_matches() {
         assert_eq!("**/abc/**".to_string(), suggestion("abc"));
         assert_eq!("**/.repo".to_string(), suggestion(".repo"));
+        assert_eq!("**/.repo2".to_string(), suggestion(".repo2"));
         assert_eq!("**/build_*/**".to_string(), suggestion("build_*"));
         assert_eq!("**/*.o".to_string(), suggestion("*.o"));
         assert_eq!("**/*.dld".to_string(), suggestion("*.dld"));
         assert_eq!("**/*.s".to_string(), suggestion("*.s"));
         assert_eq!("**/autosarOs/**".to_string(), suggestion("autosarOs"));
+        assert_eq!("**/fat32/**".to_string(), suggestion("fat32"));
     }
 }
