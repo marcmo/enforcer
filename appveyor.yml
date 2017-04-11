@@ -1,6 +1,6 @@
 environment:
   global:
-    PROJECT_NAME: ripgrep
+    PROJECT_NAME: enforcer
   matrix:
     - TARGET: i686-pc-windows-gnu
       CHANNEL: stable
