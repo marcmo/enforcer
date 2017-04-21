@@ -1,4 +1,3 @@
-extern crate enforcer;
 extern crate rustc_serialize;
 extern crate scoped_pool;
 #[macro_use]
@@ -10,10 +9,19 @@ extern crate ansi_term;
 #[macro_use]
 extern crate clap;
 extern crate num_cpus;
+extern crate toml;
+extern crate glob;
+extern crate walkdir;
+extern crate regex;
 
 use args::Args;
-mod args;
+
 mod app;
+mod args;
+mod check;
+mod clean;
+mod config;
+mod search;
 
 use std::num;
 use std::process;
@@ -23,10 +31,6 @@ use std::sync::mpsc::{sync_channel, SyncSender};
 use std::thread;
 use std::fs::File;
 use std::io::prelude::*;
-use enforcer::config;
-use enforcer::search;
-use enforcer::check;
-use enforcer::clean;
 
 macro_rules! eprintln {
     ($($tt:tt)*) => {{
@@ -68,13 +72,16 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
     let mut had_illegals: u32 = 0;
     let mut had_too_long_lines: u32 = 0;
     let clean_f = args.clean();
-    let quiet_f = args.quiet();
     let tabs_f = args.tabs();
     let thread_count = args.threads();
     let color_f = args.color();
     let max_line_length = args.line_length();
     let start_dir = args.path();
     debug!("args:{:?}", args);
+    if args.quiet() {
+        println!("quiet flag was used but is deprecated...use verbosity instead");
+    }
+    let info_level: check::InfoLevel = args.info_level();
     let paths = search::find_matches(start_dir.as_path(), cfg_ignores, file_endings);
     let count: u64 = paths.len() as u64;
     let mut pb = ProgressBar::new(count);
@@ -114,7 +121,7 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
                 let r = check::check_path(p.as_path(),
                 &buffer,
                 clean_f,
-                !quiet_f,
+                info_level,
                 max_line_length,
                 if tabs_f {
                     clean::TabStrategy::Tabify
@@ -154,15 +161,15 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
             }
         }
         checked_files += 1;
-        if quiet_f {
+        if info_level == check::InfoLevel::Quiet {
             pb.inc();
         }
     }
-    if quiet_f {
+    if info_level == check::InfoLevel::Quiet {
         pb.finish();
     };
     let _ = stop_logging_tx.send(None);
-    if quiet_f {
+    if info_level == check::InfoLevel::Quiet {
         let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines;
         if color_f {
             println!("{}: {}", check::bold("enforcer-error-count"), total_errors);

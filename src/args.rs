@@ -11,6 +11,8 @@ use log;
 
 use std::path::{Path, PathBuf};
 use std::result::Result;
+use super::check::InfoLevel;
+
 
 /// `Args` are transformed/normalized from `ArgMatches`.
 #[derive(Debug)]
@@ -25,6 +27,7 @@ pub struct Args {
     quiet: bool,
     status: bool,
     tabs: bool,
+    info_level: InfoLevel,
 }
 
 impl Args {
@@ -96,6 +99,10 @@ impl Args {
     pub fn line_length(&self) -> Option<usize> {
         self.line_length
     }
+
+    pub fn info_level(&self) -> InfoLevel {
+        self.info_level.clone()
+    }
 }
 
 /// `ArgMatches` wraps `clap::ArgMatches` and provides semantic meaning to
@@ -128,6 +135,7 @@ impl<'a> ArgMatches<'a> {
             threads: self.threads()?,
             status: self.is_present("status"),
             tabs: self.is_present("tabs"),
+            info_level: self.info_level(),
         };
         Ok(args)
     }
@@ -146,6 +154,15 @@ impl<'a> ArgMatches<'a> {
         match self.value_of_os("path") {
             None => self.default_path(),
             Some(val) => Path::new(val).to_path_buf(),
+        }
+    }
+
+    /// Return path to config file.
+    fn info_level(&self) -> InfoLevel {
+        match self.occurrences_of("info_level") {
+            0 => { InfoLevel::Quiet },
+            1 => { InfoLevel::Normal },
+            2 | _ => { InfoLevel::Verbose },
         }
     }
 

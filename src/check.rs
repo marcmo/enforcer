@@ -12,6 +12,13 @@ use term_painter::Attr::*;
 use std::sync::mpsc::SyncSender;
 use clean;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum InfoLevel {
+    Quiet,
+    Normal,
+    Verbose,
+}
+
 pub const HAS_TABS: u8 = 1 << 0;
 pub const TRAILING_SPACES: u8 = 1 << 1;
 pub const HAS_ILLEGAL_CHARACTERS: u8 = 1 << 2;
@@ -19,7 +26,7 @@ pub const LINE_TOO_LONG: u8 = 1 << 3;
 
 fn check_content<'a>(input: &'a str,
                      filename: &str,
-                     verbose: bool,
+                     info_level: InfoLevel,
                      max_line_length: Option<usize>,
                      s: clean::TabStrategy,
                      logger: SyncSender<Option<String>>)
@@ -30,32 +37,47 @@ fn check_content<'a>(input: &'a str,
         i += 1;
         max_line_length.map(|max_len| if line.len() > max_len {
             result |= LINE_TOO_LONG;
-        });
-        if line.ends_with(' ') || line.ends_with('\t') {
-            result |= TRAILING_SPACES;
-        }
-        if s == clean::TabStrategy::Untabify && line.contains("\t") {
-            result |= HAS_TABS;
-        }
-        if line.as_bytes().iter().any(|x| *x > 127) {
-            result |= HAS_ILLEGAL_CHARACTERS;
-        }
-        if verbose {
-            if (result & LINE_TOO_LONG) > 0 {
+            if info_level == InfoLevel::Verbose {
                 let _ =
                     logger.send(Some(format!("{}, line {}: error: LINE_TOO_LONG\n", filename, i)));
             }
-            if (result & TRAILING_SPACES) > 0 {
+        });
+        if line.ends_with(' ') || line.ends_with('\t') {
+            result |= TRAILING_SPACES;
+            if info_level == InfoLevel::Verbose {
                 let _ =
                     logger.send(Some(format!("{}, line {}: error: TRAILING_SPACES\n", filename, i)));
             }
-            if (result & HAS_TABS) > 0 {
+        }
+        if s == clean::TabStrategy::Untabify && line.contains("\t") {
+            result |= HAS_TABS;
+            if info_level == InfoLevel::Verbose {
                 let _ = logger.send(Some(format!("{}, line {}: error: HAS_TABS\n", filename, i)));
             }
-            if (result & HAS_ILLEGAL_CHARACTERS) > 0 {
+        }
+        if line.as_bytes().iter().any(|x| *x > 127) {
+            result |= HAS_ILLEGAL_CHARACTERS;
+            if info_level == InfoLevel::Verbose {
                 let _ =
                     logger.send(Some(format!("{}, line {}: error: non ASCII line\n", filename, i)));
             }
+        }
+    }
+    if info_level == InfoLevel::Normal {
+        if (result & LINE_TOO_LONG) > 0 {
+            let _ =
+                logger.send(Some(format!("{}, some lines with LINE_TOO_LONG\n", filename)));
+        }
+        if (result & TRAILING_SPACES) > 0 {
+            let _ =
+                logger.send(Some(format!("{}, some lines with TRAILING_SPACES\n", filename)));
+        }
+        if (result & HAS_TABS) > 0 {
+            let _ = logger.send(Some(format!("{}, some lines with HAS_TABS\n", filename)));
+        }
+        if (result & HAS_ILLEGAL_CHARACTERS) > 0 {
+            let _ =
+                logger.send(Some(format!("{}, some lines with non ASCII line\n", filename)));
         }
     }
     Ok(result)
@@ -91,7 +113,7 @@ fn report_offending_line(path: &Path, logger: SyncSender<Option<String>>) -> std
 pub fn check_path(path: &Path,
                   buf: &Vec<u8>,
                   clean: bool,
-                  verbose: bool,
+                  info_level: InfoLevel,
                   max_line_length: Option<usize>,
                   s: clean::TabStrategy,
                   logger: SyncSender<Option<String>>)
@@ -100,7 +122,7 @@ pub fn check_path(path: &Path,
         match std::str::from_utf8(buf) {
             Err(_) => {
                 check = check | HAS_ILLEGAL_CHARACTERS;
-                if verbose {
+                if info_level == InfoLevel::Verbose {
                     let _ = report_offending_line(path, logger);
                 }
                 return Ok(check);
@@ -109,13 +131,13 @@ pub fn check_path(path: &Path,
                 if check == 0 {
                     check = check_content(&buffer,
                                           path.to_str().expect("not available"),
-                                          verbose,
+                                          info_level,
                                           max_line_length,
                                           s,
                                           logger.clone())?;
                 }
                 let no_trailing_ws = if (check & TRAILING_SPACES) > 0 && clean {
-                    if verbose {
+                    if info_level == InfoLevel::Verbose {
                         let _ =
                             logger.send(Some(format!("TRAILING_SPACES:[{}] -> removing\n",
                                                      path.display())));
@@ -125,7 +147,7 @@ pub fn check_path(path: &Path,
                     buffer.to_string()
                 };
                 let res_string = if (check & HAS_TABS) > 0 && clean {
-                    if verbose {
+                    if info_level == InfoLevel::Verbose {
                         let _ = logger.send(Some(format!("HAS_TABS:[{}] -> converting to spaces\n",
                                                          path.display())));
                     }
@@ -143,11 +165,12 @@ pub fn check_path(path: &Path,
         Ok(check)
     }
 
-
+#[allow(dead_code)]
 #[cfg (not(target_os = "windows"))]
 pub fn red(s: &str) -> ansi_term::ANSIString {
     ansi_term::Colour::Red.bold().paint(s)
 }
+#[allow(dead_code)]
 #[cfg (not(target_os = "windows"))]
 pub fn yellow(s: &str) -> ansi_term::ANSIString {
     ansi_term::Colour::Yellow.bold().paint(s)
@@ -184,6 +207,7 @@ mod tests {
     use super::HAS_TABS;
     use super::HAS_ILLEGAL_CHARACTERS;
     use super::LINE_TOO_LONG;
+    use super::InfoLevel;
     use clean::TabStrategy::Untabify;
     use clean::TabStrategy::Tabify;
     use std::sync::mpsc::sync_channel;
@@ -192,7 +216,7 @@ mod tests {
     fn test_check_good_content() {
         let (logging_tx, _) = sync_channel::<Option<String>>(0);
         let content = " 1\n";
-        let res = check_content(content, "foo.h", false, None, Untabify, logging_tx);
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, None, Untabify, logging_tx);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) == 0);
@@ -203,7 +227,7 @@ mod tests {
     fn test_check_good_content_with_tabs() {
         let (logging_tx, _) = sync_channel::<Option<String>>(0);
         let content = "\t1\n";
-        let res = check_content(content, "foo.h", false, None, Tabify, logging_tx);
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, None, Tabify, logging_tx);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) == 0);
@@ -214,7 +238,7 @@ mod tests {
     fn test_check_bad_content_with_tabs() {
         let (logging_tx, _) = sync_channel::<Option<String>>(0);
         let content = "\t1\n";
-        let res = check_content(content, "foo.h", false, None, Untabify, logging_tx);
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, None, Untabify, logging_tx);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) == 0);
@@ -225,7 +249,7 @@ mod tests {
     fn test_check_content_trailing_ws() {
         let (logging_tx, _) = sync_channel::<Option<String>>(0);
         let content = "1 \n";
-        let res = check_content(content, "foo.h", false, None, Untabify, logging_tx);
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, None, Untabify, logging_tx);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) > 0);
@@ -236,7 +260,7 @@ mod tests {
     fn test_check_content_trailing_tabs() {
         let (logging_tx, _) = sync_channel::<Option<String>>(0);
         let content = "1\t\n";
-        let res = check_content(content, "foo.h", false, None, Untabify, logging_tx);
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, None, Untabify, logging_tx);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) > 0);
@@ -247,7 +271,7 @@ mod tests {
     fn test_line_too_long() {
         let (logging_tx, _) = sync_channel::<Option<String>>(0);
         let content = "1234567890\n";
-        let res = check_content(content, "foo.h", false, Some(5), Tabify, logging_tx);
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, Some(5), Tabify, logging_tx);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) == 0);
@@ -259,7 +283,7 @@ mod tests {
     fn test_line_not_too_long() {
         let (logging_tx, _) = sync_channel::<Option<String>>(0);
         let content = "1234567890\n";
-        let res = check_content(content, "foo.h", false, Some(10), Tabify, logging_tx);
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, Some(10), Tabify, logging_tx);
         assert!(res.is_ok());
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) == 0);
