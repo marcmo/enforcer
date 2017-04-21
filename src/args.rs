@@ -159,10 +159,10 @@ impl<'a> ArgMatches<'a> {
 
     /// Return path to config file.
     fn info_level(&self) -> InfoLevel {
-        match self.occurrences_of("info_level") {
-            0 => { InfoLevel::Quiet },
-            1 => { InfoLevel::Normal },
-            2 | _ => { InfoLevel::Verbose },
+        match self.occurrences_of("verbose") {
+            0 => InfoLevel::Quiet,
+            1 => InfoLevel::Normal,
+            2 | _ => InfoLevel::Verbose,
         }
     }
 
