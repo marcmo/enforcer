@@ -13,6 +13,7 @@ extern crate toml;
 extern crate glob;
 extern crate walkdir;
 extern crate regex;
+extern crate unic_char_range;
 
 use args::Args;
 

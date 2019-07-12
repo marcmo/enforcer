@@ -5,6 +5,7 @@ use std::fs::File;
 use std::fs::metadata;
 use std::io::prelude::*;
 use ansi_term;
+use unic_char_range::CharRange;
 
 use term_painter::{ToStyle, Color, Painted};
 use term_painter::Attr::*;
@@ -18,6 +19,23 @@ pub enum InfoLevel {
     Normal,
     Verbose,
 }
+
+static UTF8_ALLOWED_RANGES: &'static [CharRange] = &[
+    // Basic Latin
+    CharRange { low: '\u{0000}', high: '\u{007f}' },
+    // Latin supplement -- without control characters and no-break space
+    CharRange { low: '\u{00a1}', high: '\u{00ff}' },
+    // Latin extended A
+    CharRange { low: '\u{0100}', high: '\u{017f}' },
+    // Latin extended B
+    CharRange { low: '\u{0180}', high: '\u{024f}' },
+    // Box drawing
+    CharRange { low: '\u{2500}', high: '\u{257f}' },
+    // Block elements
+    CharRange { low: '\u{2580}', high: '\u{259f}' },
+    // Geometric shapes
+    CharRange { low: '\u{25a0}', high: '\u{25ff}' },
+];
 
 pub const HAS_TABS: u8 = 1 << 0;
 pub const TRAILING_SPACES: u8 = 1 << 1;
@@ -55,7 +73,9 @@ fn check_content<'a>(input: &'a str,
                 let _ = logger.send(Some(format!("{}, line {}: error: HAS_TABS\n", filename, i)));
             }
         }
-        if line.as_bytes().iter().any(|x| *x > 127) {
+        if !line.chars().all(|c| {
+            UTF8_ALLOWED_RANGES.iter().any(|range| range.contains(c))
+        }) {
             result |= HAS_ILLEGAL_CHARACTERS;
             if info_level == InfoLevel::Verbose {
                 let _ =
@@ -233,6 +253,45 @@ mod tests {
         assert!((check & TRAILING_SPACES) == 0);
         assert!((check & HAS_TABS) == 0);
         assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
+    }
+    #[test]
+    fn test_check_good_content_with_box_drawing() {
+        let (logging_tx, _) = sync_channel::<Option<String>>(0);
+        let content = r#"
+                     ▲
+                     │
+                     ▼
+            ┌────────S────────┐
+            │░░░░░░░░░░░░░░░░░│
+            │░Internal memory░│
+            │░░░░░░░░░░░░░░░░░│
+            └─────────────────┘
+            "#;
+
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, None, Tabify, logging_tx);
+        assert!(res.is_ok());
+        let check = res.unwrap();
+
+        // There are trailing spaces in the string literal, but otherwise it's good
+        assert!((check & HAS_TABS) == 0);
+        assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
+    }
+    #[test]
+    fn test_check_bad_content_with_illegal_characters() {
+        let (logging_tx, _) = sync_channel::<Option<String>>(0);
+        let content = r#"
+            Бл҃же́нъ мꙋ́жъ, и҆́же не и҆́де на совѣ́тъ нечести́выхъ,
+            и҆ на пꙋтѝ грѣ́шныхъ не ста̀, и҆ на сѣда́лищи гꙋби́телей
+            не сѣ́де: но въ зако́нѣ гдⷭ҇ни во́лѧ є҆гѡ̀, и҆ въ зако́нѣ
+            є҆гѡ̀ поꙋчи́тсѧ де́нь и҆ но́щь."#;
+
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, None, Tabify, logging_tx);
+        assert!(res.is_ok());
+        let check = res.unwrap();
+
+        assert!((check & TRAILING_SPACES) == 0);
+        assert!((check & HAS_TABS) == 0);
+        assert!((check & HAS_ILLEGAL_CHARACTERS) != 0);
     }
     #[test]
     fn test_check_bad_content_with_tabs() {
