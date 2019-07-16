@@ -38,7 +38,7 @@ desc "push tag to github"
 task :push do
   sh "git push origin"
   current_version = get_current_version
-  sh "git push origin v#{current_version}"
+  sh "git push origin #{current_version}"
 end
 def create_changelog(current_version, next_version)
   current_version = get_current_version
@@ -179,7 +179,7 @@ def update_toml(new_version)
 end
 
 def assert_tag_exists(version)
-  raise "tag #{version} missing" if `git tag -l v#{version}`.length == 0
+  raise "tag #{version} missing" if `git tag -l #{version}`.length == 0
 end
 def create_and_tag_new_version(next_version)
   sh "cargo test -q"
