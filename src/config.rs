@@ -88,7 +88,6 @@ fn suggestion(s: &str) -> String {
 }
 
 pub fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
-    use std::io::{Error, ErrorKind};
     debug!("parse_config");
     let mut parser = toml::Parser::new(input);
     fn default_err() -> Error {

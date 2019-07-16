@@ -55,7 +55,7 @@ pub fn remove_trailing_whitespaces<S>(input: S) -> String
 {
     let s = input.into();
     let v: Vec<&str> = s.lines()
-        .map(|line| line.trim_right())
+        .map(|line| line.trim_end())
         .collect();
 
     if s.ends_with("\n") {
