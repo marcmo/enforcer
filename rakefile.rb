@@ -38,7 +38,7 @@ desc "push tag to github"
 task :push do
   sh "git push origin"
   current_version = get_current_version
-  sh "git push origin #{current_version}"
+  sh "git push origin v#{current_version}"
 end
 def create_changelog(current_version, next_version)
   current_version = get_current_version
@@ -70,14 +70,14 @@ def build_the_release
   end
   cd "#{release_folder}" do
     cp "#{EXE_NAME}","#{HOME}/bin/#{EXE_NAME}"
-    sh "tar -cvzf indexing@#{current_version}-#{os_ext}.tgz #{EXE_NAME}"
+    sh "tar -cvzf #{EXE_NAME}@#{current_version}-#{os_ext}.tgz #{EXE_NAME}"
   end
 end
 def build_the_release_windows
   sh "cargo build --release --target=x86_64-pc-windows-gnu"
   current_version = get_current_version
   release_folder = "target/x86_64-pc-windows-gnu/release"
-  tgz_file = "indexing@#{current_version}-win64.tgz"
+  tgz_file = "#{EXE_NAME}@#{current_version}-win64.tgz"
   cd "#{release_folder}" do
     sh "tar -cvzf #{tgz_file} #{EXE_NAME}.exe"
   end
@@ -87,7 +87,7 @@ def build_the_release_windows32
   sh "cargo build --release --target=i686-pc-windows-gnu"
   current_version = get_current_version
   release_folder = "target/i686-pc-windows-gnu/release"
-  tgz_file = "indexing@#{current_version}-win32.tgz"
+  tgz_file = "#{EXE_NAME}@#{current_version}-win32.tgz"
   cd "#{release_folder}" do
     sh "tar -cvzf #{tgz_file} #{EXE_NAME}.exe"
   end
