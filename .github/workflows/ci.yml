@@ -1,0 +1,28 @@
+name: CI test workflow
+
+on:
+  push:
+    branches:
+      - test_gh_actions
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        rust: [stable]
+    steps:
+    - uses: actions/checkout@master
+      with:
+        ref: test_gh_actions
+    - uses: actions/setup-ruby@v1
+      with:
+        ruby-version: '2.x' # Version range or exact version of a Ruby version to use, using semvers version range syntax.
+    - uses: hecrj/setup-rust-action@v1
+      with:
+        rust-version: ${{ matrix.rust }}
+    - run: rake -T
+    - run: cargo build --release
+
+
