@@ -239,3 +239,7 @@ class Version < Array
     self.join(".")
   end
 end
+desc 'foo'
+task :foo do
+  puts "foo-var"
+end

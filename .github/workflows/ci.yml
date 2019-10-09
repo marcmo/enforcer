@@ -23,6 +23,8 @@ jobs:
       with:
         rust-version: ${{ matrix.rust }}
     - run: rake -T
-    - run: cargo build --release
+    - run: export FOO=`rake foo`
+    - run: env
+    # - run: cargo build --release
 
 
