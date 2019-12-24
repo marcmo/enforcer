@@ -142,7 +142,7 @@ pub fn check_path(path: &Path,
         match std::str::from_utf8(buf) {
             Err(_) => {
                 check = check | HAS_ILLEGAL_CHARACTERS;
-                if info_level == InfoLevel::Verbose {
+                if info_level == InfoLevel::Normal {
                     let _ = report_offending_line(path, logger);
                 }
                 return Ok(check);
