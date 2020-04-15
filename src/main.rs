@@ -72,6 +72,7 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
     let mut had_trailing_ws: u32 = 0;
     let mut had_illegals: u32 = 0;
     let mut had_too_long_lines: u32 = 0;
+    let mut had_win_line_endings: u32 = 0;
     let clean_f = args.clean();
     let tabs_f = args.tabs();
     let thread_count = args.threads();
@@ -151,6 +152,9 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
                         if (r & check::LINE_TOO_LONG) > 0 {
                             had_too_long_lines += 1
                         }
+                        if (r & check::HAS_WINDOWS_LINE_ENDINGS) > 0 {
+                            had_win_line_endings += 1
+                        }
                     }
                     Err(e) => {
                         error!("error occured here: {}", e);
@@ -171,14 +175,14 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
     };
     let _ = stop_logging_tx.send(None);
     if info_level == check::InfoLevel::Quiet {
-        let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines;
+        let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines + had_win_line_endings;
         if color_f {
             println!("{}: {}", check::bold("enforcer-error-count"), total_errors);
         } else {
             println!("enforcer-error-count: {}", total_errors);
         }
     }
-    if had_tabs + had_illegals + had_trailing_ws + had_too_long_lines > 0 {
+    if had_tabs + had_illegals + had_trailing_ws + had_too_long_lines + had_win_line_endings > 0 {
         if color_f {
             println!("checked {} files {}",
                      checked_files,
@@ -197,6 +201,9 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
         }
         if had_too_long_lines > 0 {
             println!("   [with TOO LONG LINES:{}]", had_too_long_lines)
+        }
+        if had_win_line_endings > 0 {
+            println!("   [with WINDOWS LINE ENDINGS:{}]", had_win_line_endings)
         }
         Ok(1)
     } else {
