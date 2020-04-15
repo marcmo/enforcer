@@ -65,9 +65,17 @@ pub fn remove_trailing_whitespaces<S>(input: S) -> String
     }
 }
 
+pub fn replace_win_line_endings<S>(input: S) -> String
+    where S: Into<String>
+{
+    let res = input.into().replace("\r\n", "\n");
+    return res;
+}
+
 #[cfg(test)]
 mod tests {
     use super::remove_trailing_whitespaces;
+    use super::replace_win_line_endings;
     use super::space_tabs_conversion;
     use super::to_spaces;
     use super::TabStrategy;
@@ -82,6 +90,12 @@ mod tests {
     fn test_clean_trailing_whitespace() {
         let content = "1 \n2";
         let cleaned = remove_trailing_whitespaces(content);
+        assert!(cleaned.eq("1\n2"));
+    }
+    #[test]
+    fn test_clean_win_line_endings() {
+        let content = "1\r\n2";
+        let cleaned = replace_win_line_endings(content);
         assert!(cleaned.eq("1\n2"));
     }
     #[test]

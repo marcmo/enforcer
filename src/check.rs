@@ -41,6 +41,7 @@ pub const HAS_TABS: u8 = 1 << 0;
 pub const TRAILING_SPACES: u8 = 1 << 1;
 pub const HAS_ILLEGAL_CHARACTERS: u8 = 1 << 2;
 pub const LINE_TOO_LONG: u8 = 1 << 3;
+pub const HAS_WINDOWS_LINE_ENDINGS: u8 = 1 << 4;
 
 fn check_content<'a>(input: &'a str,
                      filename: &str,
@@ -83,6 +84,13 @@ fn check_content<'a>(input: &'a str,
             }
         }
     }
+    if input.contains("\r\n") {
+        result |= HAS_WINDOWS_LINE_ENDINGS;
+        if info_level == InfoLevel::Verbose {
+            let _ =
+                logger.send(Some(format!("{}: error: HAS_WINDOWS_LINE_ENDINGS\n", filename)));
+        }
+    }
     if info_level == InfoLevel::Normal {
         if (result & LINE_TOO_LONG) > 0 {
             let _ =
@@ -94,6 +102,9 @@ fn check_content<'a>(input: &'a str,
         }
         if (result & HAS_TABS) > 0 {
             let _ = logger.send(Some(format!("{}, some lines with HAS_TABS\n", filename)));
+        }
+        if (result & HAS_WINDOWS_LINE_ENDINGS) > 0 {
+            let _ = logger.send(Some(format!("{}, some lines with HAS_WINDOWS_LINE_ENDINGS\n", filename)));
         }
         if (result & HAS_ILLEGAL_CHARACTERS) > 0 {
             let _ =
@@ -166,7 +177,7 @@ pub fn check_path(path: &Path,
                 } else {
                     buffer.to_string()
                 };
-                let res_string = if (check & HAS_TABS) > 0 && clean {
+                let space_tab_converted = if (check & HAS_TABS) > 0 && clean {
                     if info_level == InfoLevel::Verbose {
                         let _ = logger.send(Some(format!("HAS_TABS:[{}] -> converting to spaces\n",
                                                          path.display())));
@@ -174,6 +185,15 @@ pub fn check_path(path: &Path,
                     clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
                 } else {
                     no_trailing_ws
+                };
+                let res_string = if (check & HAS_WINDOWS_LINE_ENDINGS) > 0 && clean {
+                    if info_level == InfoLevel::Verbose {
+                        let _ = logger.send(Some(format!("HAS_WINDOWS_LINE_ENDINGS:[{}] -> converting CRLF to LF\n",
+                                                         path.display())));
+                    }
+                    clean::replace_win_line_endings(space_tab_converted)
+                } else {
+                    space_tab_converted
                 };
                 if clean {
                     let mut file = File::create(path)?;
@@ -225,6 +245,7 @@ mod tests {
     use super::check_content;
     use super::TRAILING_SPACES;
     use super::HAS_TABS;
+    use super::HAS_WINDOWS_LINE_ENDINGS;
     use super::HAS_ILLEGAL_CHARACTERS;
     use super::LINE_TOO_LONG;
     use super::InfoLevel;
@@ -302,6 +323,18 @@ mod tests {
         let check = res.unwrap();
         assert!((check & TRAILING_SPACES) == 0);
         assert!((check & HAS_TABS) == 1);
+        assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
+    }
+    #[test]
+    fn test_check_bad_content_with_win_line_endings() {
+        let (logging_tx, _) = sync_channel::<Option<String>>(0);
+        let content = "1\r\n2\r\n";
+        let res = check_content(content, "foo.h", InfoLevel::Quiet, None, Untabify, logging_tx);
+        assert!(res.is_ok());
+        let check = res.unwrap();
+        assert!((check & TRAILING_SPACES) == 0);
+        assert!((check & HAS_TABS) == 0);
+        assert!((check & HAS_WINDOWS_LINE_ENDINGS) > 0);
         assert!((check & HAS_ILLEGAL_CHARACTERS) == 0);
     }
     #[test]
