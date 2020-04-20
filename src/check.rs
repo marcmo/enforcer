@@ -7,8 +7,8 @@ use std::io::prelude::*;
 use std::path::Path;
 use unic_char_range::CharRange;
 
-use term_painter::Attr::*;
-use term_painter::{Color, Painted, ToStyle};
+#[cfg(not(target_os = "windows"))]
+use term_painter::{Attr::*, Color, Painted, ToStyle};
 
 use crate::clean;
 use std::sync::mpsc::SyncSender;
@@ -274,14 +274,6 @@ pub fn green(s: &str) -> Painted<&str> {
 #[cfg(not(target_os = "windows"))]
 pub fn bold(s: &str) -> Painted<&str> {
     Bold.paint(s)
-}
-#[cfg(target_os = "windows")]
-pub fn red(s: &str) -> ansi_term::ANSIString {
-    ansi_term::Style::new().paint(s)
-}
-#[cfg(target_os = "windows")]
-pub fn yellow(s: &str) -> ansi_term::ANSIString {
-    ansi_term::Style::new().paint(s)
 }
 #[cfg(target_os = "windows")]
 pub fn green(s: &str) -> ansi_term::ANSIString {
