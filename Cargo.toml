@@ -1,6 +1,6 @@
 [package]
 name = "enforcer"
-version = "0.14.3"
+version = "0.15.0"
 authors = ["Oliver Mueller <oliver.mueller@gmail.com>"]
 edition = "2018"
 
