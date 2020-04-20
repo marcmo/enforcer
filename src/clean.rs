@@ -36,9 +36,11 @@ fn to_tabs(_: Chars, _: u8) -> String {
 }
 
 pub fn space_tabs_conversion<S>(content: S, s: TabStrategy) -> String
-    where S: Into<String>
+where
+    S: Into<String>,
 {
-    let converted: Vec<String> = content.into()
+    let converted: Vec<String> = content
+        .into()
         .lines()
         .map(|line| match s {
             TabStrategy::Untabify => to_spaces(line.chars(), 4),
@@ -51,14 +53,13 @@ pub fn space_tabs_conversion<S>(content: S, s: TabStrategy) -> String
 }
 
 pub fn remove_trailing_whitespaces<S>(input: S) -> String
-    where S: Into<String>
+where
+    S: Into<String>,
 {
     let s = input.into();
-    let v: Vec<&str> = s.lines()
-        .map(|line| line.trim_end())
-        .collect();
+    let v: Vec<&str> = s.lines().map(|line| line.trim_end()).collect();
 
-    if s.ends_with("\n") {
+    if s.ends_with('\n') {
         v.join("\n") + "\n"
     } else {
         v.join("\n")
@@ -66,10 +67,10 @@ pub fn remove_trailing_whitespaces<S>(input: S) -> String
 }
 
 pub fn replace_win_line_endings<S>(input: S) -> String
-    where S: Into<String>
+where
+    S: Into<String>,
 {
-    let res = input.into().replace("\r\n", "\n");
-    return res;
+    input.into().replace("\r\n", "\n")
 }
 
 #[cfg(test)]
@@ -183,5 +184,4 @@ mod tests {
         let converted = to_spaces(line, 2);
         assert_eq!(converted, "   foo");
     }
-
 }

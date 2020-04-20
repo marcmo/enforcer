@@ -1,19 +1,20 @@
-extern crate rustc_serialize;
 extern crate scoped_pool;
 #[macro_use]
 extern crate log;
+extern crate ansi_term;
 extern crate env_logger;
 extern crate pbr;
+extern crate serde_derive;
 extern crate term_painter;
-extern crate ansi_term;
 #[macro_use]
 extern crate clap;
-extern crate num_cpus;
-extern crate toml;
+extern crate anyhow;
 extern crate glob;
-extern crate walkdir;
+extern crate num_cpus;
 extern crate regex;
+extern crate toml;
 extern crate unic_char_range;
+extern crate walkdir;
 
 use args::Args;
 
@@ -24,14 +25,14 @@ mod clean;
 mod config;
 mod search;
 
-use std::num;
-use std::process;
-use std::sync::Arc;
 use pbr::ProgressBar;
-use std::sync::mpsc::{sync_channel, SyncSender};
-use std::thread;
 use std::fs::File;
 use std::io::prelude::*;
+use std::num;
+use std::process;
+use std::sync::mpsc::{sync_channel, SyncSender};
+use std::sync::Arc;
+use std::thread;
 
 macro_rules! eprintln {
     ($($tt:tt)*) => {{
@@ -42,7 +43,6 @@ macro_rules! eprintln {
 
 #[allow(dead_code)]
 fn main() {
-
     match Args::parse().map(Arc::new).and_then(run) {
         Ok(0) => process::exit(0),
         Ok(_) => process::exit(1),
@@ -61,7 +61,7 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
     }
     let cfg_ignores: &Vec<String> = &enforcer_cfg.ignore;
     let cfg_endings = enforcer_cfg.endings;
-    let file_endings = if args.endings().len() > 0 {
+    let file_endings = if !args.endings().is_empty() {
         args.endings()
     } else {
         &cfg_endings
@@ -93,16 +93,17 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
     thread::spawn(move || {
         let mut done = false;
         while !done {
-            done = logging_rx.recv()
-                //convert to option
+            done = logging_rx
+                .recv()
                 .ok()
                 // not done when we got a receive error (sender end of connection closed)
-                .map_or(false, |maybe_print|
-                        maybe_print
+                .map_or(false, |maybe_print| {
+                    maybe_print
                         // a None indicates that logging is done
                         .map_or(true, |p|
                                 // just print the string we received
-                                {print!("{}", p); false}));
+                                {print!("{}", p); false})
+                });
         }
     });
 
@@ -111,56 +112,62 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
         use scoped_pool::Pool;
         let pool = Pool::new(thread_count);
 
-        pool.scoped(|scope| for path in paths {
-            let ch: SyncSender<Result<u8, std::io::Error>> = w_chan.clone();
-            let l_ch: SyncSender<Option<String>> = logging_tx.clone();
-            scope.execute(move || if !check::is_dir(path.as_path()) {
-                let p = path.clone();
-                let mut f = File::open(path).expect(format!("error reading file {:?}", p).as_str());
-                let mut buffer = Vec::new();
-                f.read_to_end(&mut buffer).expect(format!("error reading file {:?}", p).as_str());
+        pool.scoped(|scope| {
+            for path in paths {
+                let ch: SyncSender<Result<u8, std::io::Error>> = w_chan.clone();
+                let l_ch: SyncSender<Option<String>> = logging_tx.clone();
+                scope.execute(move || {
+                    if !check::is_dir(path.as_path()) {
+                        let p = path.clone();
+                        let mut f = File::open(path)
+                            .unwrap_or_else(|_| panic!("error reading file {:?}", p));
+                        let mut buffer = Vec::new();
+                        f.read_to_end(&mut buffer)
+                            .unwrap_or_else(|_| panic!("error reading file {:?}", p));
 
-                let r = check::check_path(p.as_path(),
-                &buffer,
-                clean_f,
-                info_level,
-                max_line_length,
-                if tabs_f {
-                    clean::TabStrategy::Tabify
-                } else {
-                    clean::TabStrategy::Untabify
-                },
-                l_ch);
-                ch.send(r).expect("send result with SyncSender");
-            });
+                        let r = check::check_path(
+                            p.as_path(),
+                            &buffer,
+                            clean_f,
+                            info_level,
+                            max_line_length,
+                            if tabs_f {
+                                clean::TabStrategy::Tabify
+                            } else {
+                                clean::TabStrategy::Untabify
+                            },
+                            l_ch,
+                        );
+                        ch.send(r).expect("send result with SyncSender");
+                    }
+                });
+            }
         });
     });
     for _ in 0..count {
         match r_chan.recv() {
-            Ok(res) => {
-                match res {
-                    Ok(r) => {
-                        if (r & check::HAS_TABS) > 0 {
-                            had_tabs += 1
-                        }
-                        if (r & check::TRAILING_SPACES) > 0 {
-                            had_trailing_ws += 1
-                        }
-                        if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 {
-                            had_illegals += 1
-                        }
-                        if (r & check::LINE_TOO_LONG) > 0 {
-                            had_too_long_lines += 1
-                        }
-                        if (r & check::HAS_WINDOWS_LINE_ENDINGS) > 0 {
-                            had_win_line_endings += 1
-                        }
+            Ok(res) => match res {
+                Ok(r) => {
+                    if (r & check::HAS_TABS) > 0 {
+                        had_tabs += 1
                     }
-                    Err(e) => {
-                        error!("error occured here: {}", e);
+                    if (r & check::TRAILING_SPACES) > 0 {
+                        had_trailing_ws += 1
+                    }
+                    if (r & check::HAS_ILLEGAL_CHARACTERS) > 0 {
+                        had_illegals += 1
+                    }
+                    if (r & check::LINE_TOO_LONG) > 0 {
+                        had_too_long_lines += 1
+                    }
+                    if (r & check::HAS_WINDOWS_LINE_ENDINGS) > 0 {
+                        had_win_line_endings += 1
                     }
                 }
-            }
+                Err(e) => {
+                    error!("error occured here: {}", e);
+                }
+            },
             Err(e) => {
                 panic!("error in channel: {}", e);
             }
@@ -174,45 +181,85 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
         pb.finish();
     };
     let _ = stop_logging_tx.send(None);
-    if info_level == check::InfoLevel::Quiet {
-        let total_errors = had_tabs + had_illegals + had_trailing_ws + had_too_long_lines + had_win_line_endings;
-        if color_f {
+    let findings = Findings {
+        had_tabs,
+        had_trailing_ws,
+        had_illegals,
+        had_too_long_lines,
+        had_win_line_endings,
+        checked_files,
+    };
+    report_findings(info_level == check::InfoLevel::Quiet, findings, color_f)
+}
+
+#[derive(Debug)]
+struct Findings {
+    had_tabs: u32,
+    had_trailing_ws: u32,
+    had_illegals: u32,
+    had_too_long_lines: u32,
+    had_win_line_endings: u32,
+    checked_files: u32,
+}
+
+fn report_findings(
+    quiet: bool,
+    findings: Findings,
+    colored: bool,
+) -> Result<u64, num::ParseIntError> {
+    let total_errors = findings.had_tabs
+        + findings.had_illegals
+        + findings.had_trailing_ws
+        + findings.had_too_long_lines
+        + findings.had_win_line_endings;
+    if quiet {
+        if colored {
             println!("{}: {}", check::bold("enforcer-error-count"), total_errors);
         } else {
             println!("enforcer-error-count: {}", total_errors);
         }
     }
-    if had_tabs + had_illegals + had_trailing_ws + had_too_long_lines + had_win_line_endings > 0 {
-        if color_f {
-            println!("checked {} files {}",
-                     checked_files,
-                     check::bold("(enforcer_errors!)"));
+    if total_errors > 0 {
+        if colored {
+            println!(
+                "checked {} files {}",
+                findings.checked_files,
+                check::bold("(enforcer_errors!)")
+            );
         } else {
-            println!("checked {} files (enforcer_errors!)", checked_files);
+            println!(
+                "checked {} files (enforcer_errors!)",
+                findings.checked_files
+            );
         }
-        if had_tabs > 0 {
-            println!("   [with TABS:{}]", had_tabs)
+        if findings.had_tabs > 0 {
+            println!("   [with TABS:{}]", findings.had_tabs)
         }
-        if had_illegals > 0 {
-            println!("   [with ILLEGAL CHARS:{}]", had_illegals)
+        if findings.had_illegals > 0 {
+            println!("   [with ILLEGAL CHARS:{}]", findings.had_illegals)
         }
-        if had_trailing_ws > 0 {
-            println!("   [with TRAILING SPACES:{}]", had_trailing_ws)
+        if findings.had_trailing_ws > 0 {
+            println!("   [with TRAILING SPACES:{}]", findings.had_trailing_ws)
         }
-        if had_too_long_lines > 0 {
-            println!("   [with TOO LONG LINES:{}]", had_too_long_lines)
+        if findings.had_too_long_lines > 0 {
+            println!("   [with TOO LONG LINES:{}]", findings.had_too_long_lines)
         }
-        if had_win_line_endings > 0 {
-            println!("   [with WINDOWS LINE ENDINGS:{}]", had_win_line_endings)
+        if findings.had_win_line_endings > 0 {
+            println!(
+                "   [with WINDOWS LINE ENDINGS:{}]",
+                findings.had_win_line_endings
+            )
         }
         Ok(1)
     } else {
-        if color_f {
-            println!("checked {} files {}",
-                     checked_files,
-                     check::green("(enforcer_clean!)"));
+        if colored {
+            println!(
+                "checked {} files {}",
+                findings.checked_files,
+                check::green("(enforcer_clean!)")
+            );
         } else {
-            println!("checked {} files (enforcer_clean!)", checked_files);
+            println!("checked {} files (enforcer_clean!)", findings.checked_files);
         }
         Ok(0)
     }

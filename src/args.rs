@@ -1,18 +1,16 @@
 use std::cmp;
-use std::ops;
 use std::num;
+use std::ops;
 use std::process;
 
+use crate::app;
 use clap;
-use app;
-use num_cpus;
 use env_logger;
-use log;
+use num_cpus;
 
+use super::check::InfoLevel;
 use std::path::{Path, PathBuf};
 use std::result::Result;
-use super::check::InfoLevel;
-
 
 /// `Args` are transformed/normalized from `ArgMatches`.
 #[derive(Debug)]
@@ -30,6 +28,29 @@ pub struct Args {
     info_level: InfoLevel,
 }
 
+fn init_logging(is_debug: bool) {
+    use chrono::Local;
+    use std::io::Write;
+    if std::env::var("RUST_LOG").is_err() {
+        if is_debug {
+            std::env::set_var("RUST_LOG", "warn,enforcer=debug");
+        } else {
+            std::env::set_var("RUST_LOG", "warn,enforcer=info");
+        }
+    }
+    env_logger::builder()
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} [{}] - {}",
+                Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
+                record.level(),
+                record.args()
+            )
+        })
+        .init();
+}
+
 impl Args {
     /// Parse the command line arguments for this process.
     ///
@@ -41,23 +62,15 @@ impl Args {
     pub fn parse() -> Result<Args, num::ParseIntError> {
         let matches = app::app().get_matches();
         if matches.is_present("help") {
-            let _ = ::app::app().print_help();
-            println!("");
+            let _ = app::app().print_help();
+            println!();
             process::exit(0);
         }
         if matches.is_present("version") {
             println!("enforcer {}", crate_version!());
             process::exit(0);
         }
-        let mut logb = env_logger::LogBuilder::new();
-        if matches.is_present("debug") {
-            logb.filter(None, log::LogLevelFilter::Debug);
-        } else {
-            logb.filter(None, log::LogLevelFilter::Warn);
-        }
-        if let Err(err) = logb.init() {
-            println!("failed to initialize logger: {}", err);
-        }
+        init_logging(matches.is_present("debug"));
         ArgMatches(matches).to_args()
     }
 
@@ -101,7 +114,7 @@ impl Args {
     }
 
     pub fn info_level(&self) -> InfoLevel {
-        self.info_level.clone()
+        self.info_level
     }
 }
 
@@ -125,13 +138,13 @@ impl<'a> ArgMatches<'a> {
         let config = self.config_path();
         let quiet = self.is_present("quiet");
         let args = Args {
-            path: path,
-            endings: endings,
+            path,
+            endings,
             clean: self.is_present("clean"),
             config_file: config,
             line_length: self.usize_of("L")?,
             color: self.is_present("color"),
-            quiet: quiet,
+            quiet,
             threads: self.threads()?,
             status: self.is_present("status"),
             tabs: self.is_present("tabs"),
@@ -162,7 +175,7 @@ impl<'a> ArgMatches<'a> {
         match self.occurrences_of("verbose") {
             0 => InfoLevel::Quiet,
             1 => InfoLevel::Normal,
-            2 | _ => InfoLevel::Verbose,
+            _ => InfoLevel::Verbose,
         }
     }
 

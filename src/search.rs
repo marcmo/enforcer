@@ -1,13 +1,15 @@
-extern crate walkdir;
 extern crate glob;
+extern crate walkdir;
 
-use walkdir::{DirEntry, WalkDir, WalkDirIterator};
-use std::path;
 use glob::Pattern;
+use std::path;
+use walkdir::{DirEntry, WalkDir};
 
 // find out if any path component in the path fully matches the pattern
 fn path_components_matches(pattern: &str, path: &path::Path) -> bool {
-    let haystack = path.to_str().expect(format!("problems with path: {:?}", &path).as_str());
+    let haystack = path
+        .to_str()
+        .unwrap_or_else(|| panic!("problems with path: {:?}", &path));
     let cleaned = if haystack.starts_with("./") {
         &haystack[2..]
     } else {
@@ -22,17 +24,20 @@ fn path_components_matches(pattern: &str, path: &path::Path) -> bool {
     }
 }
 
-pub fn find_matches(start_dir: &path::Path,
-                    cfg_ignores: &Vec<String>,
-                    file_endings: &[String])
-                    -> Vec<path::PathBuf> {
+pub fn find_matches(
+    start_dir: &path::Path,
+    cfg_ignores: &[String],
+    file_endings: &[String],
+) -> Vec<path::PathBuf> {
     let walker = WalkDir::new(start_dir).into_iter();
     let to_ignore = |entry: &DirEntry| -> bool {
-        cfg_ignores.iter().any(|to_ignore| path_components_matches(to_ignore, entry.path()))
+        cfg_ignores
+            .iter()
+            .any(|to_ignore| path_components_matches(to_ignore, entry.path()))
     };
-    let it = walker.filter_entry(|e| !to_ignore(e))
-        .filter_map(|e| e.ok())
-        .into_iter();
+    let it = walker
+        .filter_entry(|e| !to_ignore(e))
+        .filter_map(|e| e.ok());
     let mut res = Vec::new();
     let endings = file_endings.iter().fold(Vec::new(), |mut acc, ending| {
         // support old way of writing file endings
@@ -46,7 +51,8 @@ pub fn find_matches(start_dir: &path::Path,
         if f.file_name()
             .to_str()
             .map(|f| endings.iter().any(|p| f.ends_with(p)))
-            .unwrap_or(false) {
+            .unwrap_or(false)
+        {
             res.push(f.path().to_owned());
         }
     }
@@ -136,5 +142,4 @@ mod tests {
         let path = path::Path::new("./test/abc/.git");
         assert!(path_components_matches("**/abc/*", &path));
     }
-
 }

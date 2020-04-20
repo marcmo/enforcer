@@ -1,16 +1,16 @@
+use anyhow::{anyhow, Error};
+use regex::Regex;
+use serde_derive::Deserialize;
 use std;
-use std::io;
-use toml;
-use rustc_serialize::Decodable;
 use std::fs;
+
 use std::io::Read;
 use std::path::PathBuf;
-use std::io::{Error, ErrorKind};
-use regex::Regex;
+use toml;
 
-const DEFAULT_CFG_FILE: &'static str = "./.enforcer";
+const DEFAULT_CFG_FILE: &str = "./.enforcer";
 
-#[derive(Debug, RustcDecodable, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq)]
 pub struct EnforcerCfg {
     pub ignore: Vec<String>,
     pub endings: Vec<String>,
@@ -20,18 +20,18 @@ pub fn s(x: &str) -> String {
     x.to_string()
 }
 
-fn load_default_cfg_file() -> io::Result<fs::File> {
+fn load_default_cfg_file() -> Result<fs::File, Error> {
     let p = PathBuf::from(DEFAULT_CFG_FILE);
     if !p.as_path().exists() {
         println!("default config file {:?} does not exist!", DEFAULT_CFG_FILE);
-        Err(Error::new(ErrorKind::NotFound, "default config file missing"))
+        Err(anyhow!("default config file missing"))
     } else {
-        fs::File::open(p)
+        Ok(fs::File::open(p)?)
     }
 }
 
 pub fn get_cfg(config_file: &Option<PathBuf>) -> EnforcerCfg {
-    let read_enforcer_config = |cnfg: &Option<PathBuf>| -> std::io::Result<EnforcerCfg> {
+    let read_enforcer_config = |cnfg: &Option<PathBuf>| -> Result<EnforcerCfg, Error> {
         let mut cfg_file = match *cnfg {
             Some(ref p) => {
                 if !p.as_path().exists() {
@@ -63,7 +63,11 @@ fn default_cfg() -> EnforcerCfg {
 
 fn fix_config(cfg: &EnforcerCfg) -> EnforcerCfg {
     EnforcerCfg {
-        ignore: cfg.ignore.iter().map(|i| suggestion(i)).collect::<Vec<String>>(),
+        ignore: cfg
+            .ignore
+            .iter()
+            .map(|i| suggestion(i))
+            .collect::<Vec<String>>(),
         endings: cfg.endings.clone(),
     }
 }
@@ -87,43 +91,63 @@ fn suggestion(s: &str) -> String {
     }
 }
 
-pub fn parse_config<'a>(input: &'a str) -> io::Result<EnforcerCfg> {
-    debug!("parse_config");
-    let mut parser = toml::Parser::new(input);
-    fn default_err() -> Error {
-        Error::new(ErrorKind::InvalidData, "could not parse the config")
+pub fn parse_config(input: &str) -> Result<EnforcerCfg, Error> {
+    match toml::from_str(input) {
+        Ok(config) => {
+            let suggested = fix_config(&config);
+            if suggested.ignore != config.ignore {
+                println!(
+                    "old style config found. we will assume this:\n{:?}\nconsider \
+                          changing it! (see http://www.globtester.com/ for reference)",
+                    suggested
+                );
+                Ok(suggested)
+            } else {
+                Ok(config)
+            }
+        }
+        Err(e) => Err(anyhow!("error parsing the configuration: {}", e)),
     }
+    // debug!("parse_config");
+    // let mut parser = toml::Parser::new(input);
+    // fn default_err() -> Error {
+    //     Error::new(ErrorKind::InvalidData, "could not parse the config")
+    // }
 
-    parser.parse().map_or(Err(default_err()), |toml| {
-        if !toml.contains_key("ignore") {
-            panic!(".enforcer file needs a \"ignore\" section ");
-        }
-        if !toml.contains_key("endings") {
-            panic!(".enforcer file needs a \"endings\" section ");
-        }
-        let mut decoder = toml::Decoder::new(toml::Value::Table(toml));
-        EnforcerCfg::decode(&mut decoder)
-            .ok()
-            .map_or(Err(default_err()), |config| {
-                let suggested = fix_config(&config);
-                if suggested.ignore != config.ignore {
-                    println!("old style config found. we will assume this:\n{:?}\nconsider \
-                              changing it! (see http://www.globtester.com/ for reference)",
-                             suggested);
-                    Ok(suggested)
-                } else {
-                    Ok(config)
-                }
-            })
-    })
+    // parser.parse().map_or(Err(default_err()), |toml| {
+    //     if !toml.contains_key("ignore") {
+    //         panic!(".enforcer file needs a \"ignore\" section ");
+    //     }
+    //     if !toml.contains_key("endings") {
+    //         panic!(".enforcer file needs a \"endings\" section ");
+    //     }
+    //     let decoded: EnforcerCfg = toml::from_str(input)
+    //     decoded
+    // let mut decoder = toml::Decoder::new(toml::Value::Table(toml));
+    // EnforcerCfg::decode(&mut decoder)
+    //     .ok()
+    //     .map_or(Err(default_err()), |config| {
+    //         let suggested = fix_config(&config);
+    //         if suggested.ignore != config.ignore {
+    //             println!(
+    //                 "old style config found. we will assume this:\n{:?}\nconsider \
+    //                       changing it! (see http://www.globtester.com/ for reference)",
+    //                 suggested
+    //             );
+    //             Ok(suggested)
+    //         } else {
+    //             Ok(config)
+    //         }
+    //     })
+    // })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::s;
-    use super::EnforcerCfg;
     use super::parse_config;
+    use super::s;
     use super::suggestion;
+    use super::EnforcerCfg;
 
     #[test]
     fn test_load_simple_config() {
