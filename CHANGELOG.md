@@ -1,5 +1,8 @@
 # Changelog
 
+### [0.15.1] - 04/20/2020
+* Squelsh warnings on windows build
+
 ### [0.15.0] - 04/20/2020
 
 * Streamline CI
