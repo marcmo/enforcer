@@ -23,6 +23,7 @@ pub struct Args {
     color: bool,
     threads: usize,
     quiet: bool,
+    use_crlf: bool,
     status: bool,
     tabs: bool,
     info_level: InfoLevel,
@@ -91,6 +92,9 @@ impl Args {
     pub fn tabs(&self) -> bool {
         self.tabs
     }
+    pub fn use_crlf(&self) -> bool {
+        self.use_crlf
+    }
     pub fn config_file(&self) -> &Option<PathBuf> {
         &self.config_file
     }
@@ -137,6 +141,7 @@ impl<'a> ArgMatches<'a> {
         let endings = self.endings();
         let config = self.config_path();
         let quiet = self.is_present("quiet");
+        let use_crlf = self.is_present("crlf");
         let args = Args {
             path,
             endings,
@@ -145,6 +150,7 @@ impl<'a> ArgMatches<'a> {
             line_length: self.usize_of("L")?,
             color: self.is_present("color"),
             quiet,
+            use_crlf,
             threads: self.threads()?,
             status: self.is_present("status"),
             tabs: self.is_present("tabs"),

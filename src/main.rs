@@ -75,6 +75,7 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
     let mut had_win_line_endings: u32 = 0;
     let clean_f = args.clean();
     let tabs_f = args.tabs();
+    let use_crlf = args.use_crlf();
     let thread_count = args.threads();
     let color_f = args.color();
     let max_line_length = args.line_length();
@@ -136,7 +137,11 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
                             } else {
                                 clean::TabStrategy::Untabify
                             },
-                            clean::LineEnding::LF,
+                            if use_crlf {
+                                clean::LineEnding::CRLF
+                            } else {
+                                clean::LineEnding::LF
+                            },
                             l_ch,
                         );
                         ch.send(r).expect("send result with SyncSender");

@@ -11,14 +11,21 @@ task :default do
   create_changelog
 end
 
+desc 'Check'
+task :check do
+  sh 'cargo +nightly fmt -- --color=always --check'
+  sh 'cargo clippy'
+  sh 'cargo test'
+end
+
 desc 'run tests'
 task :test do
-  sh 'cargo test -q'
+  sh 'cargo test'
 end
 
 desc 'run tests with printing to stdout'
 task :test_nocapture do
-  sh 'cargo test -q -- --nocapture'
+  sh 'cargo test -- --nocapture'
 end
 
 def build_the_release

@@ -100,6 +100,13 @@ pub fn app() -> App<'static, 'static> {
                 .takes_value(false),
         )
         .arg(
+            Arg::with_name("use_crlf")
+                .short("w")
+                .long("crlf")
+                .help("force windows line ending (CRLF)")
+                .takes_value(false),
+        )
+        .arg(
             Arg::with_name("L")
                 .value_name("MAX")
                 .takes_value(true)

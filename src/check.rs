@@ -223,7 +223,7 @@ pub fn check_path(
                         path.display()
                     )));
                 }
-                clean::remove_trailing_whitespaces(buffer)
+                clean::remove_trailing_whitespaces(buffer, &ending)
             } else {
                 buffer.to_string()
             };

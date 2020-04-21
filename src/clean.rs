@@ -52,25 +52,30 @@ where
             TabStrategy::Tabify => to_tabs(line.chars(), 4),
         })
         .collect();
-    let mut res = match line_ending {
-        LineEnding::LF => converted.join("\n"),
-        LineEnding::CRLF => converted.join("\r\n"),
+    let ending = match line_ending {
+        LineEnding::LF => "\n",
+        LineEnding::CRLF => "\r\n",
     };
+    let mut res = converted.join(ending);
+    res.push_str(ending);
     res
-    // res.push_str("\n");
 }
 
-pub fn remove_trailing_whitespaces<S>(input: S) -> String
+pub fn remove_trailing_whitespaces<S>(input: S, line_ending: &LineEnding) -> String
 where
     S: Into<String>,
 {
     let s = input.into();
     let v: Vec<&str> = s.lines().map(|line| line.trim_end()).collect();
 
+    let ending = match line_ending {
+        LineEnding::LF => "\n",
+        LineEnding::CRLF => "\r\n",
+    };
     if s.ends_with('\n') {
-        v.join("\n") + "\n"
+        v.join(ending) + ending
     } else {
-        v.join("\n")
+        v.join(ending)
     }
 }
 
@@ -88,13 +93,13 @@ mod tests {
     #[test]
     fn test_clean_does_not_remove_trailing_newline() {
         let content = "1\n2\n3\n4\n5\n";
-        let cleaned = remove_trailing_whitespaces(content);
+        let cleaned = remove_trailing_whitespaces(content, &LineEnding::LF);
         assert!(cleaned.eq(content));
     }
     #[test]
     fn test_clean_trailing_whitespace() {
         let content = "1 \n2";
-        let cleaned = remove_trailing_whitespaces(content);
+        let cleaned = remove_trailing_whitespaces(content, &LineEnding::LF);
         assert!(cleaned.eq("1\n2"));
     }
     #[test]
@@ -106,7 +111,7 @@ mod tests {
     #[test]
     fn test_clean_trailing_tabs() {
         let content = "1\t\n2";
-        let cleaned = remove_trailing_whitespaces(content);
+        let cleaned = remove_trailing_whitespaces(content, &LineEnding::LF);
         assert!(cleaned.eq("1\n2"));
     }
     #[test]
@@ -127,15 +132,14 @@ mod tests {
         let line2 = "		bar";
         let text_with_tabs_newline = [line1, line2].join("\n");
         let text_with_tabs_cr_ln = [line1, line2].join("\r\n");
-        // let line2 = "		bar";
-        let expected_ln = "        foo\n        bar";
+        let expected_ln = "        foo\n        bar\n";
         let cleaned_ln = space_tabs_conversion(
             text_with_tabs_newline,
             TabStrategy::Untabify,
             LineEnding::LF,
         );
         assert_eq!(cleaned_ln, expected_ln);
-        let expected_cr_ln = "        foo\r\n        bar";
+        let expected_cr_ln = "        foo\r\n        bar\r\n";
         let cleaned_cr_ln = space_tabs_conversion(
             text_with_tabs_cr_ln,
             TabStrategy::Untabify,
@@ -144,43 +148,47 @@ mod tests {
         assert_eq!(cleaned_cr_ln, expected_cr_ln);
     }
     #[test]
-    fn test_file_with_tabs_to_spaces() {
-        let c = include_str!("../samples/mixedTabsAndSpaces.cpp");
-        let expected = include_str!("../samples/corrected/mixedTabsAndSpaces.cpp");
-        let cleaned = space_tabs_conversion(c, TabStrategy::Untabify, LineEnding::LF);
-        assert_eq!(cleaned, expected);
-    }
-    #[test]
-    fn test_file_with_tabs_and_trailing_whitespaces() {
-        let c = include_str!("../samples/withTabsAndTrailingWhitespaces.cpp");
-        let expected = include_str!("../samples/corrected/withTabsAndTrailingWhitespaces.cpp");
-        let cleaned = remove_trailing_whitespaces(space_tabs_conversion(
-            c,
-            TabStrategy::Untabify,
-            LineEnding::LF,
-        ));
-        assert_eq!(cleaned, expected);
-        let cleaned2 = space_tabs_conversion(
-            remove_trailing_whitespaces(c),
+    fn test_mixed_tabs_and_spaces_to_spaces() {
+        let line1 = "		foo";
+        let line2 = "       bar";
+        let text_with_tabs_newline = [line1, line2].join("\n");
+        let text_with_tabs_cr_ln = [line1, line2].join("\r\n");
+        let expected_ln = "        foo\n       bar\n";
+        let cleaned_ln = space_tabs_conversion(
+            text_with_tabs_newline,
             TabStrategy::Untabify,
             LineEnding::LF,
         );
-        assert_eq!(cleaned2, expected);
+        assert_eq!(cleaned_ln, expected_ln);
+        let expected_cr_ln = "        foo\r\n       bar\r\n";
+        let cleaned_cr_ln = space_tabs_conversion(
+            text_with_tabs_cr_ln,
+            TabStrategy::Untabify,
+            LineEnding::CRLF,
+        );
+        assert_eq!(cleaned_cr_ln, expected_cr_ln);
     }
 
     #[test]
-    fn test_file_with_tabs_and_spaces_to_spaces() {
-        let c = include_str!("../samples/mixedTabsAndSpaces2.cpp");
-        let expected = include_str!("../samples/corrected/mixedTabsAndSpaces.cpp");
-        let cleaned = space_tabs_conversion(c, TabStrategy::Untabify, LineEnding::LF);
-        assert_eq!(cleaned, expected);
-    }
-    #[test]
-    fn test_file_with_empty_line() {
-        let c = include_str!("../samples/simpleWithEmptyLine.cpp");
-        let expected = include_str!("../samples/corrected/simpleWithEmptyLine.cpp");
-        let cleaned = space_tabs_conversion(c, TabStrategy::Untabify, LineEnding::LF);
-        assert_eq!(cleaned, expected);
+    fn test_tabs_and_spaces_in_one_line() {
+        let line1 = " 		foo"; // space + tab + tab
+        let line2 = "		bar"; // tab + tab
+        let text_with_tabs_newline = [line1, line2].join("\n");
+        let text_with_tabs_cr_ln = [line1, line2].join("\r\n");
+        let expected_ln = "        foo\n        bar\n";
+        let cleaned_ln = space_tabs_conversion(
+            text_with_tabs_newline,
+            TabStrategy::Untabify,
+            LineEnding::LF,
+        );
+        assert_eq!(cleaned_ln, expected_ln);
+        let expected_cr_ln = "        foo\r\n        bar\r\n";
+        let cleaned_cr_ln = space_tabs_conversion(
+            text_with_tabs_cr_ln,
+            TabStrategy::Untabify,
+            LineEnding::CRLF,
+        );
+        assert_eq!(cleaned_cr_ln, expected_cr_ln);
     }
     #[test]
     fn test_no_change_on_empty_string() {
