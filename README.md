@@ -87,9 +87,3 @@ Now check again
     real	0m3.621s
     user	0m3.758s
     sys	0m2.411s
-
-# Changelog
-
-### [0.14.3] - 07/16/2019
-  * fixed raketask
-

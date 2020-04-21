@@ -12,7 +12,6 @@
 * Squelsh warnings on windows build
 
 ### [0.15.0] - 04/20/2020
-
 * Streamline CI
 * Create github actions for cross platform build
   update dependencies
@@ -23,3 +22,6 @@
 * Change info level for encoding errors
   Decrease required error reporting level to Normal for when UTF-8
   sequence can't be decoded,
+
+### [0.14.3] - 07/16/2019
+* fixed raketask
