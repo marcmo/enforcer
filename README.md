@@ -1,4 +1,5 @@
-[![Build Status](https://travis-ci.org/marcmo/enforcer.svg?branch=master)](http://travis-ci.org/marcmo/enforcer) [![Appveyor Build status](https://ci.appveyor.com/api/projects/status/vv4t6mfr25p61a6p?svg=true)](https://ci.appveyor.com/project/marcmo/enforcer)
+[![LICENSE](https://img.shields.io/github/license/marcmo/enforcer?color=blue)](LICENSE.txt)
+[![](https://img.shields.io/github/license/marcmo/enforcer)](https://github.com/marcmo/enforcer/actions)
 
 enforcer
 ========
