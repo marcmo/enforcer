@@ -1,5 +1,13 @@
 # Changelog
 
+### [0.15.2] - 04/21/2020
+* Format code with cargo fmt nightly
+  add raketask to check if all tests and clippy and fmt are correct
+* Fix tests: windows tests were broken
+  since git did funny things with adding/removing CRLF endings
+  now we construct the strings by hand
+* Add LineEnding option
+
 ### [0.15.1] - 04/20/2020
 * Squelsh warnings on windows build
 
