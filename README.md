@@ -1,5 +1,5 @@
-[![LICENSE](https://img.shields.io/github/license/marcmo/enforcer?color=blue)](LICENSE.txt)
-[![](https://img.shields.io/github/license/marcmo/enforcer)](https://github.com/marcmo/enforcer/actions)
+[![LICENSE](https://img.shields.io/github/license/marcmo/enforcer)](LICENSE.txt)
+[![](https://github.com/marcmo/enforcer/workflows/Check%20%26%20Build/badge.svg)](https://github.com/marcmo/enforcer/actions)
 
 enforcer
 ========
