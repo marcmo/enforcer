@@ -23,6 +23,11 @@ task :test do
   sh 'cargo test'
 end
 
+desc 'format code with cargo nightly'
+task :fmt do
+  sh 'cargo +nightly fmt'
+end
+
 desc 'run tests with printing to stdout'
 task :test_nocapture do
   sh 'cargo test -- --nocapture'

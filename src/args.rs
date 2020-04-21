@@ -1,7 +1,4 @@
-use std::cmp;
-use std::num;
-use std::ops;
-use std::process;
+use std::{cmp, num, ops, process};
 
 use crate::app;
 use clap;
@@ -9,8 +6,10 @@ use env_logger;
 use num_cpus;
 
 use super::check::InfoLevel;
-use std::path::{Path, PathBuf};
-use std::result::Result;
+use std::{
+    path::{Path, PathBuf},
+    result::Result,
+};
 
 /// `Args` are transformed/normalized from `ArgMatches`.
 #[derive(Debug)]

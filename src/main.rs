@@ -26,13 +26,16 @@ mod config;
 mod search;
 
 use pbr::ProgressBar;
-use std::fs::File;
-use std::io::prelude::*;
-use std::num;
-use std::process;
-use std::sync::mpsc::{sync_channel, SyncSender};
-use std::sync::Arc;
-use std::thread;
+use std::{
+    fs::File,
+    io::prelude::*,
+    num, process,
+    sync::{
+        mpsc::{sync_channel, SyncSender},
+        Arc,
+    },
+    thread,
+};
 
 macro_rules! eprintln {
     ($($tt:tt)*) => {{

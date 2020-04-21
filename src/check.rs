@@ -1,10 +1,11 @@
 use ansi_term;
-use std;
-use std::fs::metadata;
-use std::fs::File;
-use std::io;
-use std::io::prelude::*;
-use std::path::Path;
+use std::{
+    self,
+    fs::{metadata, File},
+    io,
+    io::prelude::*,
+    path::Path,
+};
 use unic_char_range::CharRange;
 
 #[cfg(not(target_os = "windows"))]
@@ -288,13 +289,10 @@ pub fn bold(s: &str) -> ansi_term::ANSIString {
 
 #[cfg(test)]
 mod tests {
-    use super::check_content;
-    use super::InfoLevel;
-    use super::HAS_ILLEGAL_CHARACTERS;
-    use super::HAS_TABS;
-    use super::HAS_WINDOWS_LINE_ENDINGS;
-    use super::LINE_TOO_LONG;
-    use super::TRAILING_SPACES;
+    use super::{
+        check_content, InfoLevel, HAS_ILLEGAL_CHARACTERS, HAS_TABS, HAS_WINDOWS_LINE_ENDINGS,
+        LINE_TOO_LONG, TRAILING_SPACES,
+    };
     use crate::clean::TabStrategy::{Tabify, Untabify};
     use std::sync::mpsc::sync_channel;
 

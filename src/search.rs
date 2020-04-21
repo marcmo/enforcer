@@ -61,8 +61,7 @@ pub fn find_matches(
 
 #[cfg(test)]
 mod tests {
-    use super::find_matches;
-    use super::path_components_matches;
+    use super::{find_matches, path_components_matches};
     use std::path;
 
     fn s(x: &str) -> String {

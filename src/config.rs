@@ -1,11 +1,9 @@
 use anyhow::{anyhow, Error};
 use regex::Regex;
 use serde_derive::Deserialize;
-use std;
-use std::fs;
+use std::{self, fs};
 
-use std::io::Read;
-use std::path::PathBuf;
+use std::{io::Read, path::PathBuf};
 use toml;
 
 const DEFAULT_CFG_FILE: &str = "./.enforcer";
@@ -144,10 +142,7 @@ pub fn parse_config(input: &str) -> Result<EnforcerCfg, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_config;
-    use super::s;
-    use super::suggestion;
-    use super::EnforcerCfg;
+    use super::{parse_config, s, suggestion, EnforcerCfg};
 
     #[test]
     fn test_load_simple_config() {
