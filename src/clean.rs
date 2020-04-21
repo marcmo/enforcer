@@ -5,6 +5,11 @@ pub enum TabStrategy {
     Untabify,
     Tabify,
 }
+#[derive(Clone, PartialEq)]
+pub enum LineEnding {
+    LF,
+    CRLF,
+}
 
 fn to_spaces(line: Chars, width: u8) -> String {
     let mut result: Vec<char> = Vec::new();
@@ -35,7 +40,7 @@ fn to_tabs(_: Chars, _: u8) -> String {
     String::new()
 }
 
-pub fn space_tabs_conversion<S>(content: S, s: TabStrategy) -> String
+pub fn space_tabs_conversion<S>(content: S, s: TabStrategy, line_ending: LineEnding) -> String
 where
     S: Into<String>,
 {
@@ -47,9 +52,12 @@ where
             TabStrategy::Tabify => to_tabs(line.chars(), 4),
         })
         .collect();
-    let mut res = converted.join("\n");
-    res.push_str("\n");
+    let mut res = match line_ending {
+        LineEnding::LF => converted.join("\n"),
+        LineEnding::CRLF => converted.join("\r\n"),
+    };
     res
+    // res.push_str("\n");
 }
 
 pub fn remove_trailing_whitespaces<S>(input: S) -> String
@@ -75,11 +83,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::remove_trailing_whitespaces;
-    use super::replace_win_line_endings;
-    use super::space_tabs_conversion;
-    use super::to_spaces;
-    use super::TabStrategy;
+    use super::*;
 
     #[test]
     fn test_clean_does_not_remove_trailing_newline() {
@@ -118,19 +122,49 @@ mod tests {
         assert_eq!(converted, "        A");
     }
     #[test]
+    fn test_tabs_to_spaces() {
+        let line1 = "		foo";
+        let line2 = "		bar";
+        let text_with_tabs_newline = [line1, line2].join("\n");
+        let text_with_tabs_cr_ln = [line1, line2].join("\r\n");
+        // let line2 = "		bar";
+        let expected_ln = "        foo\n        bar";
+        let cleaned_ln = space_tabs_conversion(
+            text_with_tabs_newline,
+            TabStrategy::Untabify,
+            LineEnding::LF,
+        );
+        assert_eq!(cleaned_ln, expected_ln);
+        let expected_cr_ln = "        foo\r\n        bar";
+        let cleaned_cr_ln = space_tabs_conversion(
+            text_with_tabs_cr_ln,
+            TabStrategy::Untabify,
+            LineEnding::CRLF,
+        );
+        assert_eq!(cleaned_cr_ln, expected_cr_ln);
+    }
+    #[test]
     fn test_file_with_tabs_to_spaces() {
         let c = include_str!("../samples/mixedTabsAndSpaces.cpp");
         let expected = include_str!("../samples/corrected/mixedTabsAndSpaces.cpp");
-        let cleaned = space_tabs_conversion(c, TabStrategy::Untabify);
+        let cleaned = space_tabs_conversion(c, TabStrategy::Untabify, LineEnding::LF);
         assert_eq!(cleaned, expected);
     }
     #[test]
     fn test_file_with_tabs_and_trailing_whitespaces() {
         let c = include_str!("../samples/withTabsAndTrailingWhitespaces.cpp");
         let expected = include_str!("../samples/corrected/withTabsAndTrailingWhitespaces.cpp");
-        let cleaned = remove_trailing_whitespaces(space_tabs_conversion(c, TabStrategy::Untabify));
+        let cleaned = remove_trailing_whitespaces(space_tabs_conversion(
+            c,
+            TabStrategy::Untabify,
+            LineEnding::LF,
+        ));
         assert_eq!(cleaned, expected);
-        let cleaned2 = space_tabs_conversion(remove_trailing_whitespaces(c), TabStrategy::Untabify);
+        let cleaned2 = space_tabs_conversion(
+            remove_trailing_whitespaces(c),
+            TabStrategy::Untabify,
+            LineEnding::LF,
+        );
         assert_eq!(cleaned2, expected);
     }
 
@@ -138,14 +172,14 @@ mod tests {
     fn test_file_with_tabs_and_spaces_to_spaces() {
         let c = include_str!("../samples/mixedTabsAndSpaces2.cpp");
         let expected = include_str!("../samples/corrected/mixedTabsAndSpaces.cpp");
-        let cleaned = space_tabs_conversion(c, TabStrategy::Untabify);
+        let cleaned = space_tabs_conversion(c, TabStrategy::Untabify, LineEnding::LF);
         assert_eq!(cleaned, expected);
     }
     #[test]
     fn test_file_with_empty_line() {
         let c = include_str!("../samples/simpleWithEmptyLine.cpp");
         let expected = include_str!("../samples/corrected/simpleWithEmptyLine.cpp");
-        let cleaned = space_tabs_conversion(c, TabStrategy::Untabify);
+        let cleaned = space_tabs_conversion(c, TabStrategy::Untabify, LineEnding::LF);
         assert_eq!(cleaned, expected);
     }
     #[test]

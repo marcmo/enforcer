@@ -136,6 +136,7 @@ fn run(args: Arc<Args>) -> Result<u64, num::ParseIntError> {
                             } else {
                                 clean::TabStrategy::Untabify
                             },
+                            clean::LineEnding::LF,
                             l_ch,
                         );
                         ch.send(r).expect("send result with SyncSender");

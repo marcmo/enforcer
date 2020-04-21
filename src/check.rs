@@ -185,6 +185,7 @@ fn report_offending_line(path: &Path, logger: SyncSender<Option<String>>) -> std
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn check_path(
     path: &Path,
     buf: &[u8],
@@ -192,6 +193,7 @@ pub fn check_path(
     info_level: InfoLevel,
     max_line_length: Option<usize>,
     s: clean::TabStrategy,
+    ending: clean::LineEnding,
     logger: SyncSender<Option<String>>,
 ) -> io::Result<u8> {
     let mut check = 0;
@@ -232,7 +234,7 @@ pub fn check_path(
                         path.display()
                     )));
                 }
-                clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify)
+                clean::space_tabs_conversion(no_trailing_ws, clean::TabStrategy::Untabify, ending)
             } else {
                 no_trailing_ws
             };
